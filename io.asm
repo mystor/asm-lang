@@ -57,6 +57,7 @@ hex_prefix:     db      '0x'
 hex_len:        equ     $ - hex_prefix
 
 Write64:
+        fn rax
         mov r8, rsp
 
         ;; Add the newline character
@@ -92,7 +93,7 @@ __Write64Done:
         sub rdx, r8
         syscall
 
-        ret
+        fnret
 
 ;;; Read in a single character
 ;;; USAGE: GetChr reg <FILE = STDIN>

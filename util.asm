@@ -13,6 +13,7 @@
   %endrep
 %endmacro
 
+;;; Call a function
 %macro fcall 1
         call %1
 %endmacro
