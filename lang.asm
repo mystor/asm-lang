@@ -1,54 +1,82 @@
 %include "util.asm"
 %include "io.asm"
 
-%macro enum 2
-    %1_%2:      equ     $ - %1
-        db ' '
+%macro enum 1
+        %assign cnt 0
+        %xdefine ENAME %1
+%endmacro
+%macro opt 1
+        %xdefine %[ENAME]_%1 cnt
+        %defstr %[ENAME]_%[cnt]_NAME %1
+        %assign cnt cnt+1
+%endmacro
+%macro endenum 0
+;;; Support for debug printing
+Print%[ENAME]:
+        fn r12
+        %rep cnt
+            %push enum_item
+            %assign cnt cnt-1
+            cmp r12, cnt
+            jne %$Next
+            WriteStr STDOUT, %[ENAME]_%[cnt]_NAME, NL
+            jmp %%Done
+    %$Next:
+            %pop
+        %endrep
+    %%Done:
+        fnret
 %endmacro
 
-        section .data
-TOKEN:
+        section .text
+enum TOKEN
         ;; Dumb Tokens (no data)
-        enum TOKEN, LBRACE
-        enum TOKEN, RBRACE
-        enum TOKEN, LPAREN
-        enum TOKEN, RPAREN
-        enum TOKEN, LBRACKET
-        enum TOKEN, RBRACKET
+        opt LBRACE
+        opt RBRACE
+        opt LPAREN
+        opt RPAREN
+        opt LBRACKET
+        opt RBRACKET
 
         ;; Symbols
-        enum TOKEN, NOT
-        enum TOKEN, HASH
-        enum TOKEN, MODULO
-        enum TOKEN, AND
-        enum TOKEN, STAR
-        enum TOKEN, PLUS
-        enum TOKEN, DASH
-        enum TOKEN, DOT
-        enum TOKEN, COMMA
-        enum TOKEN, SLASH
-        enum TOKEN, COLON
-        enum TOKEN, SEMI
-        enum TOKEN, LT
-        enum TOKEN, EQ
-        enum TOKEN, GT
-        enum TOKEN, QMARK
-        enum TOKEN, AT
-        enum TOKEN, CARET
-        enum TOKEN, BAR
-        enum TOKEN, TILDE
+        opt NOT
+        opt HASH
+        opt MODULO
+        opt AND
+        opt STAR
+        opt PLUS
+        opt DASH
+        opt DOT
+        opt COMMA
+        opt SLASH
+        opt COLON
+        opt SEMI
+        opt LT
+        opt EQ
+        opt GT
+        opt QMARK
+        opt AT
+        opt CARET
+        opt BAR
+        opt TILDE
 
         ;; Special, Tokens (have data)
-        enum TOKEN, IDENT
-        enum TOKEN, STRING
-        enum TOKEN, NUMBER
+        opt IDENT
+        opt STRING
+        opt NUMBER
+
+        ;; Special Cases
+        opt EOF
+        opt IGNORE
+        opt INVALID
 
         ;; The number of items in the TOKEN enum
-        enum TOKEN, COUNT
-        enum TOKEN, IGNORE
-        enum TOKEN, INVALID
+        opt COUNT
+endenum
 
-readtok_JUMPTABLE:
+        section .rodata
+
+ReadTok_Map:
         db TOKEN_IGNORE           ;LF
         times 2 db TOKEN_INVALID  ;VT-FF
         db TOKEN_IGNORE           ;CR
@@ -89,41 +117,65 @@ readtok_JUMPTABLE:
         db TOKEN_BAR              ;'|'
         db TOKEN_RBRACE           ;'}'
         db TOKEN_TILDE            ;'~'
-readtok_JUMPTABLELEN:   equ     $ - readtok_JUMPTABLE
+ReadTok_Map_LEN:   equ     $ - ReadTok_Map
 
 
         section .text
 ReadTok:
         fn
+__ReadTok_ReadChr:
         GetChr r12, STDIN
-        fcall Write64, r12
-        sub r12, 10             ; table starts at index 10
-        jl ReadTok_FAIL
-        cmp r12, readtok_JUMPTABLELEN
-        jge ReadTok_FAIL
-        mov rax, 0              ; Clear the high bits, and set low bits
-        mov al, [r12 + readtok_JUMPTABLE]
-        fnret
-ReadTok_FAIL:
-        mov rax, 0              ; Clear the high bits, and set low bits
-        mov al, TOKEN_INVALID
-        fnret
+
+        ;; EOF
+        cmp r12, -1
+        je __ReadTok_EOF
+        ;; Underflow
+        sub r12, 10
+        jl __ReadTok_Invalid
+        ;; Overflow
+        cmp r12, ReadTok_Map_LEN
+        jge __ReadTok_Invalid        ; If chr >= ReadTok_Map_LEN, invalid
+
+        ;; Read the token from JUMPTABLE
+        mov al, [r12 + ReadTok_Map] ; Read from JUMPTABLE
+
+        ;; Skip IGNORE values
+        cmp al, TOKEN_IGNORE
+        je __ReadTok_ReadChr
+
+        ;; Fail on INVALID values
+        cmp al, TOKEN_INVALID
+        je __ReadTok_Done
+
+        ;; Detect Compound Values
+        cmp al, TOKEN_IDENT
+        jge __ReadTok_Compound
+
+        jmp __ReadTok_Done
+
+__ReadTok_Compound:
+        ;; Parse compound values (like IDENT, STRING or INT)
+        ;; TODO(michael): Implement
+        jmp __ReadTok_Done
+__ReadTok_Done:
+        and rax, 0xff           ; Clear all but low 8 bits
+        fnret ; rax
+__ReadTok_Invalid:
+        fnret TOKEN_INVALID
+__ReadTok_EOF:
+        fnret TOKEN_EOF
 
 
         global _start
 _start:
         WriteStr STDOUT, 'Hello, world!', NL
-        WriteStr STDOUT, 'LBRACE: '
-        fcall Write64, TOKEN_LBRACE
-        WriteStr STDOUT, 'INVALID: '
-        fcall Write64, TOKEN_INVALID
-        WriteStr STDOUT, 'STRING: '
-        fcall Write64, TOKEN_STRING
 
 ReadPrintTok:
         fcall ReadTok
-        fcall Write64, rax
-        jmp ReadPrintTok
+        mov r12, rax
+        fcall PrintTOKEN, r12
+        cmp r12, TOKEN_INVALID
+        jne ReadPrintTok
 
         mov rax, 60
         mov rdi, 0
