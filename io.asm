@@ -73,10 +73,10 @@ Write64:
         shr rax, 4
         ;; Check if we're done already
         cmp rax, 0
-        je Write64Done
+        je __Write64Done
         %endrep
 
-Write64Done:
+__Write64Done:
         ;; Print the 0x prefix
         mov rax, SYS_WRITE
         mov rdi, STDOUT
@@ -103,7 +103,7 @@ Write64Done:
 %macro GetChr 2
         mov rax, SYS_READ
         mov rdi, %2
-        mov rsi, rsp     ; Get some space on the stack
+        mov rsi, rsp                  ; Get some space on the stack
         sub rsi, 8
         mov QWORD [rsi], 0            ; Fill with 0s
         mov rdx, 1
