@@ -96,3 +96,31 @@
         mov rax, %1
         fnret
 %endmacro
+
+;;; Enums
+%macro enum 1
+        %assign cnt 0
+        %xdefine ENAME %1
+%endmacro
+%macro opt 1
+        %xdefine %[ENAME]_%1 cnt
+        %defstr %[ENAME]_%[cnt]_NAME %1
+        %assign cnt cnt+1
+%endmacro
+%macro endenum 0
+;;; Support for debug printing
+Print%[ENAME]:
+        fn r12
+        %rep cnt
+            %push enum_item
+            %assign cnt cnt-1
+            cmp r12, cnt
+            jne %$Next
+            WriteStr STDOUT, %[ENAME]_%[cnt]_NAME, NL
+            jmp %%Done
+    %$Next:
+            %pop
+        %endrep
+    %%Done:
+        fnret
+%endmacro

@@ -19,6 +19,7 @@
 ;;; Default files
 %define STDIN           0
 %define STDOUT          1
+%define STDERR          2
 
 ;;; Write out a file to FILENAME
 ;;; USAGE: WriteStr FILE 'string','com','pon','ents'
@@ -119,4 +120,12 @@ __Write64Done:
         jmp %%done
 %%done:
         nop
+%endmacro
+
+%macro Panic 2+
+        WriteStr STDERR, %2
+
+        mov rax, SYS_EXIT
+        mov rdi, %1
+        syscall
 %endmacro
