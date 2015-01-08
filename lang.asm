@@ -1,5 +1,7 @@
 %include "util.asm"
 %include "io.asm"
+%include "memory.asm"
+%include "hash.asm"
 %include "lexer.asm"
 
         section .text
