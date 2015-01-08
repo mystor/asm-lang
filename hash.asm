@@ -33,5 +33,6 @@ __HashStr_BYTE_Loop:
         jmp __HashStr_BYTE_Loop
 __HashStr_BYTE_Done:
         ;; rax contains the value we are dividing
-        div r14
+        mov rdx, 0
+        div QWORD r14
         fnret rdx               ; rdx will contain remainder

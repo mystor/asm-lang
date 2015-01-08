@@ -44,8 +44,41 @@ enum TOKEN
         opt COUNT
 endenum
 
-        section .rodata
 
+;;; ***************
+;;; Peek/Eat Chars
+
+        section .data
+chr_cache:      dq      -2
+
+        section .text
+PeekChr:
+        fn
+        cmp QWORD [chr_cache], -2
+        je __PeekChr_CacheMiss
+__PeekChr_CacheHit:
+        fnret [chr_cache]
+__PeekChr_CacheMiss:
+        GetChr r12, STDIN
+        mov [chr_cache], r12
+        fnret r12
+
+
+EatChr:
+        fn
+        fcall PeekChr
+        mov r12, rax
+        cmp QWORD [chr_cache], -1
+        je __EatChr_Done
+        GetChr r13, STDIN
+        mov [chr_cache], r13
+__EatChr_Done:
+        fnret r12
+
+;;; **************
+;;; Read in Tokens
+
+        section .rodata
 ReadTok_Map:
         dq __ReadTok_IGNORE           ;LF
         times 2 dq __ReadTok_INVALID  ;VT-FF
@@ -90,32 +123,7 @@ ReadTok_Map:
 ReadTok_Map_LEN:   equ     $ - ReadTok_Map
 
 
-        section .data
-chr_cache:      dq      -2
-
         section .text
-PeekChr:
-        fn
-        cmp QWORD [chr_cache], -2
-        je __PeekChr_CacheMiss
-__PeekChr_CacheHit:
-        fnret [chr_cache]
-__PeekChr_CacheMiss:
-        GetChr r12, STDIN
-        mov [chr_cache], r12
-        fnret r12
-
-EatChr:
-        fn
-        fcall PeekChr
-        mov r12, rax
-        cmp QWORD [chr_cache], -1
-        je __EatChr_Done
-        GetChr r13, STDIN
-        mov [chr_cache], r13
-__EatChr_Done:
-        fnret r12
-
 ReadTok:
         fn
 __ReadTok_IGNORE:               ; Jump back to here when should ignore
@@ -193,6 +201,45 @@ __ReadTok_TILDE:
 __ReadTok_IDENT:
         fnret TOKEN_IDENT
 __ReadTok_STRING:
+        mov r13, rsp            ; End of String
+__ReadTok_STRING_ReadChr:
+        fcall EatChr
+        cmp rax, -1             ; EOF
+        je __ReadTok_STRING_Fail
+        cmp al, 34             ; "
+        je __ReadTok_STRING_End
+        cmp al, 92              ; \
+        je __ReadTok_STRING_ReadEscChr
+
+        ;; Add the character to the string
+        sub rsp, 1
+        mov BYTE [rsp], al
+        jmp __ReadTok_STRING_ReadChr
+
+        ;; A \ was read, read in chr after it
+__ReadTok_STRING_ReadEscChr:
+        fcall EatChr
+        cmp rax, -1             ; EOF
+        je __ReadTok_STRING_Fail
+        sub rsp, 1
+        mov BYTE [rsp], al
+        jmp __ReadTok_STRING_ReadChr
+
+__ReadTok_STRING_Fail:
+        Panic 100, 'Unexpected EOF while parsing String', NL
+
+__ReadTok_STRING_End:
+        ;; TODO(michael): Reverse the string
+        sub r13, rsp
+        fcall Intern, rsp, r13  ; Intern the string
+        mov r14, rax
+        fcall Write64, r14
+        fcall Write64, [r14-8]
+        WriteStr STDOUT, 'This Far!', NL
+
+        ;; Free the stack space
+        add rsp, r13
+
         fnret TOKEN_STRING
 __ReadTok_NUMBER:
         fnret TOKEN_NUMBER
@@ -203,8 +250,12 @@ __ReadTok_EOF:
 __ReadTok_INVALID:
         Panic 100, 'Invalid Token!', NL
 
+;;; ***************
+;;; Peek/Eat Tokens
+
         section .data
 tok_cache:      dq      TOKEN_INVALID
+tok_data:       dq      0
 
         section .text
 PeekTok:
@@ -212,10 +263,12 @@ PeekTok:
         cmp QWORD [tok_cache], TOKEN_INVALID
         je __PeekTok_CacheMiss
 __PeekTok_CacheHit:
+        mov rdx, [tok_data]
         fnret [tok_cache]
 __PeekTok_CacheMiss:
         fcall ReadTok
         mov [tok_cache], rax
+        mov [tok_data], rdx
         fnret rax
 
 EatTok:
@@ -224,4 +277,5 @@ EatTok:
         mov r12, rax
         fcall ReadTok
         mov [tok_cache], rax
+        mov [tok_data], rdx
         fnret r12
