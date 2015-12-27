@@ -1,0 +1,3337 @@
+     1                                  %include "util.asm"
+     2                              <1> ;;; From http://www.tortall.net/projects/yasm/manual/html/nasm-multi-line-macros.html#nasm-macro-rotate
+     3                              <1> %macro  multipush 1-*
+     4                              <1>   %rep  %0
+     5                              <1>         push    %1
+     6                              <1>   %rotate 1
+     7                              <1>   %endrep
+     8                              <1> %endmacro
+     9                              <1> 
+    10                              <1> %macro  multipop 1-*
+    11                              <1>   %rep %0
+    12                              <1>   %rotate -1
+    13                              <1>         pop     %1
+    14                              <1>   %endrep
+    15                              <1> %endmacro
+    16                              <1> 
+    17                              <1> ;;; Call a function
+    18                              <1> %macro fcall 1
+    19                              <1>         call %1
+    20                              <1> %endmacro
+    21                              <1> %macro fcall 2
+    22                              <1>         mov rdi, %2
+    23                              <1>         call %1
+    24                              <1> %endmacro
+    25                              <1> %macro fcall 3
+    26                              <1>         mov rdi, %2
+    27                              <1>         mov rsi, %3
+    28                              <1>         call %1
+    29                              <1> %endmacro
+    30                              <1> %macro fcall 4
+    31                              <1>         mov rdi, %2
+    32                              <1>         mov rsi, %3
+    33                              <1>         mov rdx, %4
+    34                              <1>         call %1
+    35                              <1> %endmacro
+    36                              <1> %macro fcall 5
+    37                              <1>         mov rdi, %2
+    38                              <1>         mov rsi, %3
+    39                              <1>         mov rdx, %4
+    40                              <1>         mov rcx, %5
+    41                              <1>         call %1
+    42                              <1> %endmacro
+    43                              <1> %macro fcall 6
+    44                              <1>         mov rdi, %2
+    45                              <1>         mov rsi, %3
+    46                              <1>         mov rdx, %4
+    47                              <1>         mov rcx, %5
+    48                              <1>         mov r8, %6
+    49                              <1>         call %1
+    50                              <1> %endmacro
+    51                              <1> %macro fcall 7
+    52                              <1>         mov rdi, %2
+    53                              <1>         mov rsi, %3
+    54                              <1>         mov rdx, %4
+    55                              <1>         mov rcx, %5
+    56                              <1>         mov r8, %6
+    57                              <1>         mov r7, %7
+    58                              <1>         call %1
+    59                              <1> %endmacro
+    60                              <1> 
+    61                              <1> ;;; Declare a fn
+    62                              <1> %macro fn 0
+    63                              <1>         multipush rbp, rbx, r12, r13, r14, r15
+    64                              <1>         mov rbp, rsp
+    65                              <1> %endmacro
+    66                              <1> %macro fn 1
+    67                              <1>         fn
+    68                              <1>         mov %1, rdi
+    69                              <1> %endmacro
+    70                              <1> %macro fn 2
+    71                              <1>         fn %1
+    72                              <1>         mov %2, rsi
+    73                              <1> %endmacro
+    74                              <1> %macro fn 3
+    75                              <1>         fn %1, %2
+    76                              <1>         mov %3, rdx
+    77                              <1> %endmacro
+    78                              <1> %macro fn 4
+    79                              <1>         fn %1, %2, %3
+    80                              <1>         mov %4, rcx
+    81                              <1> %endmacro
+    82                              <1> %macro fn 5
+    83                              <1>         fn %1, %2, %3, %4
+    84                              <1>         mov %5, r8
+    85                              <1> %endmacro
+    86                              <1> %macro fn 6
+    87                              <1>         fn %1, %2, %3, %4, %5
+    88                              <1>         mov %6, r9
+    89                              <1> %endmacro
+    90                              <1> 
+    91                              <1> ;;; Return from a function
+    92                              <1> %macro fnret 0
+    93                              <1>         multipop rbp, rbx, r12, r13, r14, r15
+    94                              <1>         ret
+    95                              <1> %endmacro
+    96                              <1> %macro fnret 1
+    97                              <1>         mov rax, %1
+    98                              <1>         fnret
+    99                              <1> %endmacro
+   100                              <1> 
+   101                              <1> ;;; Enums
+   102                              <1> %macro enum 1
+   103                              <1>         %assign cnt 0
+   104                              <1>         %xdefine ENAME %1
+   105                              <1> %endmacro
+   106                              <1> %macro opt 1
+   107                              <1>         %xdefine %[ENAME]_%1 cnt
+   108                              <1>         %defstr %[ENAME]_%[cnt]_NAME %1
+   109                              <1>         %assign cnt cnt+1
+   110                              <1> %endmacro
+   111                              <1> %macro endenum 0
+   112                              <1> ;;; Support for debug printing
+   113                              <1> Print%[ENAME]:
+   114                              <1>         fn r12
+   115                              <1>         %rep cnt
+   116                              <1>             %push enum_item
+   117                              <1>             %assign cnt cnt-1
+   118                              <1>             cmp r12, cnt
+   119                              <1>             jne %$Next
+   120                              <1>             WriteLit STDOUT, %[ENAME]_%[cnt]_NAME, NL
+   121                              <1>             jmp %%Done
+   122                              <1>     %$Next:
+   123                              <1>             %pop
+   124                              <1>         %endrep
+   125                              <1>     %%Done:
+   126                              <1>         fnret
+   127                              <1> %endmacro
+   128                                  %include "io.asm"
+   129                              <1> %define NL              10      ; EOL
+   130                              <1> 
+   131                              <1> ;;; System Calls
+   132                              <1> %ifidn __OUTPUT_FORMAT__, macho64 ; OSX
+   133                              <1>         ;; macho64 requires relative addressing
+   134                              <1>         %define SYS_READ        0x2000003
+   135                              <1>         %define SYS_WRITE       0x2000004
+   136                              <1> 
+   137                              <1>         %define SYS_EXIT        0x2000001
+   138                              <1> %elifidn __OUTPUT_FORMAT__, elf64 ; Linux
+   139                              <1>         %define SYS_READ        0
+   140                              <1>         %define SYS_WRITE       1
+   141                              <1> 
+   142                              <1>         %define SYS_EXIT        60
+   143                              <1> %else
+   144                              <1>         %error "Unsupported Platform"
+   145                              <1> %endif
+   146                              <1> 
+   147                              <1> ;;; Default files
+   148                              <1> %define STDIN           0
+   149                              <1> %define STDOUT          1
+   150                              <1> %define STDERR          2
+   151                              <1> 
+   152                              <1> ;;; Write out a file to FILENAME
+   153                              <1> ;;; USAGE: WriteLit FILE 'string','com','pon','ents'
+   154                              <1> %macro WriteLit 2+
+   155                              <1>         jmp     %%endstr
+   156                              <1>     %%str:      db      %2
+   157                              <1>     %%endstr:
+   158                              <1>         mov     rax,    SYS_WRITE
+   159                              <1>         mov     rdi,    %1
+   160                              <1>         mov     rsi,    %%str
+   161                              <1>         mov     rdx,    %%endstr-%%str
+   162                              <1>         syscall
+   163                              <1> %endmacro
+   164                              <1> 
+   165                              <1> ;;; Write out a single character
+   166                              <1> ;;; USAGE: WriteChr <FILE = STDOUT> chr
+   167                              <1> %macro WriteChr 1
+   168                              <1>         WriteChr STDOUT, %1
+   169                              <1> %endmacro
+   170                              <1> 
+   171                              <1> %macro WriteChr 2
+   172                              <1>         mov rax, %2
+   173                              <1>         mov [rsp-8], rax
+   174                              <1>         mov rax, SYS_WRITE
+   175                              <1>         mov rdi, %1
+   176                              <1>         ;; Get the address just below the current stack ptr
+   177                              <1>         ;; (Allocating 8 bytes, for one character.)
+   178                              <1>         mov rsi, rsp
+   179                              <1>         sub rsi, 8
+   180                              <1>         mov rdx, 1
+   181                              <1>         syscall
+   182                              <1> %endmacro
+   183                              <1> 
+   184 00000000 303132333435363738- <1> hex_table:      db      '0123456789abcdef'
+   185 00000009 39616263646566      <1>
+   186 00000010 3078                <1> hex_prefix:     db      '0x'
+   187                              <1> hex_len:        equ     $ - hex_prefix
+   188                              <1> 
+   189                              <1> Write64:
+   190                              <1>         fn rax
+   191                              <2>  fn
+   192                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   193                              <4>  %rep %0
+   194                              <4>  push %1
+   195                              <4>  %rotate 1
+   196                              <4>  %endrep
+   197 00000012 55                  <5>  push %1
+   198                              <5>  %rotate 1
+   199 00000013 53                  <5>  push %1
+   200                              <5>  %rotate 1
+   201 00000014 4154                <5>  push %1
+   202                              <5>  %rotate 1
+   203 00000016 4155                <5>  push %1
+   204                              <5>  %rotate 1
+   205 00000018 4156                <5>  push %1
+   206                              <5>  %rotate 1
+   207 0000001A 4157                <5>  push %1
+   208                              <5>  %rotate 1
+   209 0000001C 4889E5              <3>  mov rbp, rsp
+   210 0000001F 4889F8              <2>  mov %1, rdi
+   211 00000022 4989E0              <1>         mov r8, rsp
+   212                              <1> 
+   213                              <1>         ;; Add the newline character
+   214 00000025 4983E801            <1>         sub r8, 1
+   215 00000029 41C6000A            <1>         mov BYTE [r8], 10
+   216                              <1> 
+   217                              <1>         ;; Calculate each of the hex characters
+   218                              <1>         %rep 16
+   219                              <1>         sub r8, 1
+   220                              <1>         mov r9, rax
+   221                              <1>         and r9, 0xF
+   222                              <1>         mov bl, [hex_table+r9]
+   223                              <1>         mov [r8], bl
+   224                              <1>         shr rax, 4
+   225                              <1>         ;; Check if we're done already
+   226                              <1>         cmp rax, 0
+   227                              <1>         je __Write64Done
+   228                              <1>         %endrep
+   229 0000002D 4983E801            <2>  sub r8, 1
+   230 00000031 4989C1              <2>  mov r9, rax
+   231 00000034 4983E10F            <2>  and r9, 0xF
+   232 00000038 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   233 0000003F 418818              <2>  mov [r8], bl
+   234 00000042 48C1E804            <2>  shr rax, 4
+   235                              <2> 
+   236 00000046 4883F800            <2>  cmp rax, 0
+   237 0000004A 0F84F9010000        <2>  je __Write64Done
+   238 00000050 4983E801            <2>  sub r8, 1
+   239 00000054 4989C1              <2>  mov r9, rax
+   240 00000057 4983E10F            <2>  and r9, 0xF
+   241 0000005B 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   242 00000062 418818              <2>  mov [r8], bl
+   243 00000065 48C1E804            <2>  shr rax, 4
+   244                              <2> 
+   245 00000069 4883F800            <2>  cmp rax, 0
+   246 0000006D 0F84D6010000        <2>  je __Write64Done
+   247 00000073 4983E801            <2>  sub r8, 1
+   248 00000077 4989C1              <2>  mov r9, rax
+   249 0000007A 4983E10F            <2>  and r9, 0xF
+   250 0000007E 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   251 00000085 418818              <2>  mov [r8], bl
+   252 00000088 48C1E804            <2>  shr rax, 4
+   253                              <2> 
+   254 0000008C 4883F800            <2>  cmp rax, 0
+   255 00000090 0F84B3010000        <2>  je __Write64Done
+   256 00000096 4983E801            <2>  sub r8, 1
+   257 0000009A 4989C1              <2>  mov r9, rax
+   258 0000009D 4983E10F            <2>  and r9, 0xF
+   259 000000A1 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   260 000000A8 418818              <2>  mov [r8], bl
+   261 000000AB 48C1E804            <2>  shr rax, 4
+   262                              <2> 
+   263 000000AF 4883F800            <2>  cmp rax, 0
+   264 000000B3 0F8490010000        <2>  je __Write64Done
+   265 000000B9 4983E801            <2>  sub r8, 1
+   266 000000BD 4989C1              <2>  mov r9, rax
+   267 000000C0 4983E10F            <2>  and r9, 0xF
+   268 000000C4 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   269 000000CB 418818              <2>  mov [r8], bl
+   270 000000CE 48C1E804            <2>  shr rax, 4
+   271                              <2> 
+   272 000000D2 4883F800            <2>  cmp rax, 0
+   273 000000D6 0F846D010000        <2>  je __Write64Done
+   274 000000DC 4983E801            <2>  sub r8, 1
+   275 000000E0 4989C1              <2>  mov r9, rax
+   276 000000E3 4983E10F            <2>  and r9, 0xF
+   277 000000E7 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   278 000000EE 418818              <2>  mov [r8], bl
+   279 000000F1 48C1E804            <2>  shr rax, 4
+   280                              <2> 
+   281 000000F5 4883F800            <2>  cmp rax, 0
+   282 000000F9 0F844A010000        <2>  je __Write64Done
+   283 000000FF 4983E801            <2>  sub r8, 1
+   284 00000103 4989C1              <2>  mov r9, rax
+   285 00000106 4983E10F            <2>  and r9, 0xF
+   286 0000010A 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   287 00000111 418818              <2>  mov [r8], bl
+   288 00000114 48C1E804            <2>  shr rax, 4
+   289                              <2> 
+   290 00000118 4883F800            <2>  cmp rax, 0
+   291 0000011C 0F8427010000        <2>  je __Write64Done
+   292 00000122 4983E801            <2>  sub r8, 1
+   293 00000126 4989C1              <2>  mov r9, rax
+   294 00000129 4983E10F            <2>  and r9, 0xF
+   295 0000012D 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   296 00000134 418818              <2>  mov [r8], bl
+   297 00000137 48C1E804            <2>  shr rax, 4
+   298                              <2> 
+   299 0000013B 4883F800            <2>  cmp rax, 0
+   300 0000013F 0F8404010000        <2>  je __Write64Done
+   301 00000145 4983E801            <2>  sub r8, 1
+   302 00000149 4989C1              <2>  mov r9, rax
+   303 0000014C 4983E10F            <2>  and r9, 0xF
+   304 00000150 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   305 00000157 418818              <2>  mov [r8], bl
+   306 0000015A 48C1E804            <2>  shr rax, 4
+   307                              <2> 
+   308 0000015E 4883F800            <2>  cmp rax, 0
+   309 00000162 0F84E1000000        <2>  je __Write64Done
+   310 00000168 4983E801            <2>  sub r8, 1
+   311 0000016C 4989C1              <2>  mov r9, rax
+   312 0000016F 4983E10F            <2>  and r9, 0xF
+   313 00000173 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   314 0000017A 418818              <2>  mov [r8], bl
+   315 0000017D 48C1E804            <2>  shr rax, 4
+   316                              <2> 
+   317 00000181 4883F800            <2>  cmp rax, 0
+   318 00000185 0F84BE000000        <2>  je __Write64Done
+   319 0000018B 4983E801            <2>  sub r8, 1
+   320 0000018F 4989C1              <2>  mov r9, rax
+   321 00000192 4983E10F            <2>  and r9, 0xF
+   322 00000196 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   323 0000019D 418818              <2>  mov [r8], bl
+   324 000001A0 48C1E804            <2>  shr rax, 4
+   325                              <2> 
+   326 000001A4 4883F800            <2>  cmp rax, 0
+   327 000001A8 0F849B000000        <2>  je __Write64Done
+   328 000001AE 4983E801            <2>  sub r8, 1
+   329 000001B2 4989C1              <2>  mov r9, rax
+   330 000001B5 4983E10F            <2>  and r9, 0xF
+   331 000001B9 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   332 000001C0 418818              <2>  mov [r8], bl
+   333 000001C3 48C1E804            <2>  shr rax, 4
+   334                              <2> 
+   335 000001C7 4883F800            <2>  cmp rax, 0
+   336 000001CB 747C                <2>  je __Write64Done
+   337 000001CD 4983E801            <2>  sub r8, 1
+   338 000001D1 4989C1              <2>  mov r9, rax
+   339 000001D4 4983E10F            <2>  and r9, 0xF
+   340 000001D8 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   341 000001DF 418818              <2>  mov [r8], bl
+   342 000001E2 48C1E804            <2>  shr rax, 4
+   343                              <2> 
+   344 000001E6 4883F800            <2>  cmp rax, 0
+   345 000001EA 745D                <2>  je __Write64Done
+   346 000001EC 4983E801            <2>  sub r8, 1
+   347 000001F0 4989C1              <2>  mov r9, rax
+   348 000001F3 4983E10F            <2>  and r9, 0xF
+   349 000001F7 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   350 000001FE 418818              <2>  mov [r8], bl
+   351 00000201 48C1E804            <2>  shr rax, 4
+   352                              <2> 
+   353 00000205 4883F800            <2>  cmp rax, 0
+   354 00000209 743E                <2>  je __Write64Done
+   355 0000020B 4983E801            <2>  sub r8, 1
+   356 0000020F 4989C1              <2>  mov r9, rax
+   357 00000212 4983E10F            <2>  and r9, 0xF
+   358 00000216 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   359 0000021D 418818              <2>  mov [r8], bl
+   360 00000220 48C1E804            <2>  shr rax, 4
+   361                              <2> 
+   362 00000224 4883F800            <2>  cmp rax, 0
+   363 00000228 741F                <2>  je __Write64Done
+   364 0000022A 4983E801            <2>  sub r8, 1
+   365 0000022E 4989C1              <2>  mov r9, rax
+   366 00000231 4983E10F            <2>  and r9, 0xF
+   367 00000235 418A99[00000000]    <2>  mov bl, [hex_table+r9]
+   368 0000023C 418818              <2>  mov [r8], bl
+   369 0000023F 48C1E804            <2>  shr rax, 4
+   370                              <2> 
+   371 00000243 4883F800            <2>  cmp rax, 0
+   372 00000247 7400                <2>  je __Write64Done
+   373                              <1> 
+   374                              <1> __Write64Done:
+   375                              <1>         ;; Print the 0x prefix
+   376 00000249 B801000000          <1>         mov rax, SYS_WRITE
+   377 0000024E BF01000000          <1>         mov rdi, STDOUT
+   378 00000253 48BE-               <1>         mov rsi, hex_prefix
+   379 00000255 [1000000000000000]  <1>
+   380 0000025D BA02000000          <1>         mov rdx, hex_len
+   381 00000262 0F05                <1>         syscall
+   382                              <1> 
+   383                              <1>         ;; Print the hexadecimal values
+   384 00000264 B801000000          <1>         mov rax, SYS_WRITE
+   385 00000269 BF01000000          <1>         mov rdi, STDOUT
+   386 0000026E 4C89C6              <1>         mov rsi, r8
+   387 00000271 4889E2              <1>         mov rdx, rsp
+   388 00000274 4C29C2              <1>         sub rdx, r8
+   389 00000277 0F05                <1>         syscall
+   390                              <1> 
+   391                              <1>         fnret
+   392                              <2>  multipop rbp, rbx, r12, r13, r14, r15
+   393                              <3>  %rep %0
+   394                              <3>  %rotate -1
+   395                              <3>  pop %1
+   396                              <3>  %endrep
+   397                              <4>  %rotate -1
+   398 00000279 415F                <4>  pop %1
+   399                              <4>  %rotate -1
+   400 0000027B 415E                <4>  pop %1
+   401                              <4>  %rotate -1
+   402 0000027D 415D                <4>  pop %1
+   403                              <4>  %rotate -1
+   404 0000027F 415C                <4>  pop %1
+   405                              <4>  %rotate -1
+   406 00000281 5B                  <4>  pop %1
+   407                              <4>  %rotate -1
+   408 00000282 5D                  <4>  pop %1
+   409 00000283 C3                  <2>  ret
+   410                              <1> 
+   411                              <1> WriteStr:
+   412                              <1>         fn r12
+   413                              <2>  fn
+   414                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   415                              <4>  %rep %0
+   416                              <4>  push %1
+   417                              <4>  %rotate 1
+   418                              <4>  %endrep
+   419 00000284 55                  <5>  push %1
+   420                              <5>  %rotate 1
+   421 00000285 53                  <5>  push %1
+   422                              <5>  %rotate 1
+   423 00000286 4154                <5>  push %1
+   424                              <5>  %rotate 1
+   425 00000288 4155                <5>  push %1
+   426                              <5>  %rotate 1
+   427 0000028A 4156                <5>  push %1
+   428                              <5>  %rotate 1
+   429 0000028C 4157                <5>  push %1
+   430                              <5>  %rotate 1
+   431 0000028E 4889E5              <3>  mov rbp, rsp
+   432 00000291 4989FC              <2>  mov %1, rdi
+   433                              <1>         fcall StrLen, r12
+   434 00000294 4C89E7              <2>  mov rdi, %2
+   435 00000297 E8(00000000)        <2>  call %1
+   436                              <1> 
+   437 0000029C 4889C2              <1>         mov rdx, rax
+   438 0000029F B801000000          <1>         mov rax, SYS_WRITE
+   439 000002A4 BF01000000          <1>         mov rdi, STDOUT,
+   440 000002A9 4C89E6              <1>         mov rsi, r12
+   441 000002AC 0F05                <1>         syscall
+   442                              <1> 
+   443                              <1>         fnret
+   444                              <2>  multipop rbp, rbx, r12, r13, r14, r15
+   445                              <3>  %rep %0
+   446                              <3>  %rotate -1
+   447                              <3>  pop %1
+   448                              <3>  %endrep
+   449                              <4>  %rotate -1
+   450 000002AE 415F                <4>  pop %1
+   451                              <4>  %rotate -1
+   452 000002B0 415E                <4>  pop %1
+   453                              <4>  %rotate -1
+   454 000002B2 415D                <4>  pop %1
+   455                              <4>  %rotate -1
+   456 000002B4 415C                <4>  pop %1
+   457                              <4>  %rotate -1
+   458 000002B6 5B                  <4>  pop %1
+   459                              <4>  %rotate -1
+   460 000002B7 5D                  <4>  pop %1
+   461 000002B8 C3                  <2>  ret
+   462                              <1> 
+   463                              <1> ;;; Read in a single character
+   464                              <1> ;;; USAGE: GetChr reg <FILE = STDIN>
+   465                              <1> %macro GetChr 1
+   466                              <1>         GetChr %1, STDIN
+   467                              <1> %endmacro
+   468                              <1> 
+   469                              <1> %macro GetChr 2
+   470                              <1>         mov rax, SYS_READ
+   471                              <1>         mov rdi, %2
+   472                              <1>         mov rsi, rsp                  ; Get some space on the stack
+   473                              <1>         sub rsi, 8
+   474                              <1>         mov QWORD [rsi], 0            ; Fill with 0s
+   475                              <1>         mov rdx, 1
+   476                              <1>         syscall
+   477                              <1>         cmp rax, 0
+   478                              <1>         je  %%fail
+   479                              <1> %%success:
+   480                              <1>         mov %1, [rsp-8]
+   481                              <1>         jmp %%done
+   482                              <1> %%fail:
+   483                              <1>         mov %1, -1
+   484                              <1>         jmp %%done
+   485                              <1> %%done:
+   486                              <1>         nop
+   487                              <1> %endmacro
+   488                              <1> 
+   489                              <1> %macro Panic 2+
+   490                              <1>         WriteLit STDERR, %2
+   491                              <1> 
+   492                              <1>         mov rax, SYS_EXIT
+   493                              <1>         mov rdi, %1
+   494                              <1>         syscall
+   495                              <1> %endmacro
+   496                                  %include "memory.asm"
+   497                              <1> ;;; Memory "management" module. Provides mechanisms for allocating memory
+   498                              <1> ;;; Including building strings. (N.B. Horribly naive and inefficient)
+   499                              <1> ;;; No mechanism is provided for freeing memory. (GC is an optimization ^.^)
+   500                              <1> 
+   501                              <1> %define SYS_MMAP        9
+   502                              <1> 
+   503                              <1> %define PROT_READ       0x1
+   504                              <1> %define PROT_WRITE      0x2
+   505                              <1> %define PROT_EXEC       0x4
+   506                              <1> 
+   507                              <1> %define MAP_PRIVATE     0x2
+   508                              <1> %define MAP_ANON        0x20
+   509                              <1> %define MAP_FAILED      -1
+   510                              <1> 
+   511                              <1> %define PAGE_SIZE       4096
+   512                              <1> 
+   513                              <1>         section .data
+   514 00000000 0000000000000000    <1> malloc_page:    dq      0
+   515 00000008 0000000000000000    <1> malloc_rem:     dq      0
+   516                              <1> 
+   517                              <1>         section .text
+   518                              <1> ;;; A horribly inefficient byte-by-byte memory copy loop
+   519                              <1> MemCpy:
+   520                              <1>         fn r12, r13, r14        ; r12 = src, r13 = dst, r14 = cnt
+   521                              <2>  fn %1, %2
+   522                              <3>  fn %1
+   523                              <4>  fn
+   524                              <5>  multipush rbp, rbx, r12, r13, r14, r15
+   525                              <6>  %rep %0
+   526                              <6>  push %1
+   527                              <6>  %rotate 1
+   528                              <6>  %endrep
+   529 000002B9 55                  <7>  push %1
+   530                              <7>  %rotate 1
+   531 000002BA 53                  <7>  push %1
+   532                              <7>  %rotate 1
+   533 000002BB 4154                <7>  push %1
+   534                              <7>  %rotate 1
+   535 000002BD 4155                <7>  push %1
+   536                              <7>  %rotate 1
+   537 000002BF 4156                <7>  push %1
+   538                              <7>  %rotate 1
+   539 000002C1 4157                <7>  push %1
+   540                              <7>  %rotate 1
+   541 000002C3 4889E5              <5>  mov rbp, rsp
+   542 000002C6 4989FC              <4>  mov %1, rdi
+   543 000002C9 4989F5              <3>  mov %2, rsi
+   544 000002CC 4989D6              <2>  mov %3, rdx
+   545                              <1> __MemCpy_Loop:
+   546 000002CF 4983FE00            <1>         cmp r14, 0
+   547 000002D3 7416                <1>         je __MemCpy_Done
+   548 000002D5 418A0424            <1>         mov BYTE al, [r12]
+   549 000002D9 41884500            <1>         mov BYTE [r13], al
+   550 000002DD 4983C401            <1>         add r12, 1
+   551 000002E1 4983C501            <1>         add r13, 1
+   552 000002E5 4983EE01            <1>         sub r14, 1
+   553 000002E9 EBE4                <1>         jmp __MemCpy_Loop
+   554                              <1> 
+   555                              <1> __MemCpy_Done:
+   556                              <1>         fnret
+   557                              <2>  multipop rbp, rbx, r12, r13, r14, r15
+   558                              <3>  %rep %0
+   559                              <3>  %rotate -1
+   560                              <3>  pop %1
+   561                              <3>  %endrep
+   562                              <4>  %rotate -1
+   563 000002EB 415F                <4>  pop %1
+   564                              <4>  %rotate -1
+   565 000002ED 415E                <4>  pop %1
+   566                              <4>  %rotate -1
+   567 000002EF 415D                <4>  pop %1
+   568                              <4>  %rotate -1
+   569 000002F1 415C                <4>  pop %1
+   570                              <4>  %rotate -1
+   571 000002F3 5B                  <4>  pop %1
+   572                              <4>  %rotate -1
+   573 000002F4 5D                  <4>  pop %1
+   574 000002F5 C3                  <2>  ret
+   575                              <1> 
+   576                              <1> ;;; Allocate Aligned Memory
+   577                              <1> Malloc:
+   578                              <1>         fn r12                  ; r12 = size
+   579                              <2>  fn
+   580                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   581                              <4>  %rep %0
+   582                              <4>  push %1
+   583                              <4>  %rotate 1
+   584                              <4>  %endrep
+   585 000002F6 55                  <5>  push %1
+   586                              <5>  %rotate 1
+   587 000002F7 53                  <5>  push %1
+   588                              <5>  %rotate 1
+   589 000002F8 4154                <5>  push %1
+   590                              <5>  %rotate 1
+   591 000002FA 4155                <5>  push %1
+   592                              <5>  %rotate 1
+   593 000002FC 4156                <5>  push %1
+   594                              <5>  %rotate 1
+   595 000002FE 4157                <5>  push %1
+   596                              <5>  %rotate 1
+   597 00000300 4889E5              <3>  mov rbp, rsp
+   598 00000303 4989FC              <2>  mov %1, rdi
+   599                              <1>         fcall Malloc_Align, 8
+   600 00000306 BF08000000          <2>  mov rdi, %2
+   601 0000030B E816000000          <2>  call %1
+   602                              <1>         fcall Malloc_Unaligned, r12
+   603 00000310 4C89E7              <2>  mov rdi, %2
+   604 00000313 E845000000          <2>  call %1
+   605                              <1>         fnret rax
+   606 00000318 4889C0              <2>  mov rax, %1
+   607                              <2>  fnret
+   608                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+   609                              <4>  %rep %0
+   610                              <4>  %rotate -1
+   611                              <4>  pop %1
+   612                              <4>  %endrep
+   613                              <5>  %rotate -1
+   614 0000031B 415F                <5>  pop %1
+   615                              <5>  %rotate -1
+   616 0000031D 415E                <5>  pop %1
+   617                              <5>  %rotate -1
+   618 0000031F 415D                <5>  pop %1
+   619                              <5>  %rotate -1
+   620 00000321 415C                <5>  pop %1
+   621                              <5>  %rotate -1
+   622 00000323 5B                  <5>  pop %1
+   623                              <5>  %rotate -1
+   624 00000324 5D                  <5>  pop %1
+   625 00000325 C3                  <3>  ret
+   626                              <1> 
+   627                              <1> ;;; Align current allocation start
+   628                              <1> Malloc_Align:
+   629                              <1>         fn r12                  ; r12 = alignment
+   630                              <2>  fn
+   631                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   632                              <4>  %rep %0
+   633                              <4>  push %1
+   634                              <4>  %rotate 1
+   635                              <4>  %endrep
+   636 00000326 55                  <5>  push %1
+   637                              <5>  %rotate 1
+   638 00000327 53                  <5>  push %1
+   639                              <5>  %rotate 1
+   640 00000328 4154                <5>  push %1
+   641                              <5>  %rotate 1
+   642 0000032A 4155                <5>  push %1
+   643                              <5>  %rotate 1
+   644 0000032C 4156                <5>  push %1
+   645                              <5>  %rotate 1
+   646 0000032E 4157                <5>  push %1
+   647                              <5>  %rotate 1
+   648 00000330 4889E5              <3>  mov rbp, rsp
+   649 00000333 4989FC              <2>  mov %1, rdi
+   650 00000336 488B0425[00000000]  <1>         mov rax, [malloc_page]
+   651 0000033E 49F7F4              <1>         div r12                 ; rdx has remainder
+   652 00000341 4883FA00            <1>         cmp rdx, 0
+   653 00000345 740B                <1>         je __Malloc_Aligned
+   654 00000347 4929D4              <1>         sub r12, rdx            ; r12 has align - remainder
+   655 0000034A 4C012425[00000000]  <1>         add [malloc_page], r12  ; Move the page by the right amount
+   656                              <1> __Malloc_Aligned:
+   657                              <1>         fnret
+   658                              <2>  multipop rbp, rbx, r12, r13, r14, r15
+   659                              <3>  %rep %0
+   660                              <3>  %rotate -1
+   661                              <3>  pop %1
+   662                              <3>  %endrep
+   663                              <4>  %rotate -1
+   664 00000352 415F                <4>  pop %1
+   665                              <4>  %rotate -1
+   666 00000354 415E                <4>  pop %1
+   667                              <4>  %rotate -1
+   668 00000356 415D                <4>  pop %1
+   669                              <4>  %rotate -1
+   670 00000358 415C                <4>  pop %1
+   671                              <4>  %rotate -1
+   672 0000035A 5B                  <4>  pop %1
+   673                              <4>  %rotate -1
+   674 0000035B 5D                  <4>  pop %1
+   675 0000035C C3                  <2>  ret
+   676                              <1> 
+   677                              <1> ;;; Allocate Unaligned Memory
+   678                              <1> Malloc_Unaligned:
+   679                              <1>         fn r12                  ; r12 = size
+   680                              <2>  fn
+   681                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   682                              <4>  %rep %0
+   683                              <4>  push %1
+   684                              <4>  %rotate 1
+   685                              <4>  %endrep
+   686 0000035D 55                  <5>  push %1
+   687                              <5>  %rotate 1
+   688 0000035E 53                  <5>  push %1
+   689                              <5>  %rotate 1
+   690 0000035F 4154                <5>  push %1
+   691                              <5>  %rotate 1
+   692 00000361 4155                <5>  push %1
+   693                              <5>  %rotate 1
+   694 00000363 4156                <5>  push %1
+   695                              <5>  %rotate 1
+   696 00000365 4157                <5>  push %1
+   697                              <5>  %rotate 1
+   698 00000367 4889E5              <3>  mov rbp, rsp
+   699 0000036A 4989FC              <2>  mov %1, rdi
+   700 0000036D 4C3B2425[08000000]  <1>         cmp r12, [malloc_rem]
+   701 00000375 7D26                <1>         jge __Malloc_NewPage
+   702                              <1> 
+   703                              <1> __Malloc_RetPtr:
+   704 00000377 488B0425[00000000]  <1>         mov rax, [malloc_page]
+   705 0000037F 4C292425[08000000]  <1>         sub [malloc_rem], r12
+   706 00000387 4C012425[00000000]  <1>         add [malloc_page], r12
+   707                              <1> 
+   708                              <1>         fnret rax
+   709 0000038F 4889C0              <2>  mov rax, %1
+   710                              <2>  fnret
+   711                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+   712                              <4>  %rep %0
+   713                              <4>  %rotate -1
+   714                              <4>  pop %1
+   715                              <4>  %endrep
+   716                              <5>  %rotate -1
+   717 00000392 415F                <5>  pop %1
+   718                              <5>  %rotate -1
+   719 00000394 415E                <5>  pop %1
+   720                              <5>  %rotate -1
+   721 00000396 415D                <5>  pop %1
+   722                              <5>  %rotate -1
+   723 00000398 415C                <5>  pop %1
+   724                              <5>  %rotate -1
+   725 0000039A 5B                  <5>  pop %1
+   726                              <5>  %rotate -1
+   727 0000039B 5D                  <5>  pop %1
+   728 0000039C C3                  <3>  ret
+   729                              <1> 
+   730                              <1> __Malloc_NewPage:
+   731                              <1>         ;; TODO(michael): Detect if r12 is larger than a page!
+   732 0000039D 4981FC00100000      <1>         cmp r12, PAGE_SIZE
+   733 000003A4 7D44                <1>         jge __Malloc_AllocFailure
+   734                              <1> 
+   735                              <1>         ;; mmap(2) a new page to store in
+   736 000003A6 B809000000          <1>         mov rax, SYS_MMAP
+   737 000003AB BF00000000          <1>         mov rdi, 0                      ; addr
+   738 000003B0 BE00100000          <1>         mov rsi, PAGE_SIZE              ; # of bytes to allocate (1 page)
+   739 000003B5 BA03000000          <1>         mov rdx, PROT_READ | PROT_WRITE ; Protections
+   740 000003BA 41BA22000000        <1>         mov r10, MAP_PRIVATE | MAP_ANON ; Flags
+   741 000003C0 41B800000000        <1>         mov r8, 0                       ; File Descriptor (unused)
+   742 000003C6 41B900000000        <1>         mov r9, 0                       ; Offset (unused)
+   743                              <1> 
+   744 000003CC 0F05                <1>         syscall
+   745                              <1> 
+   746 000003CE 4883F8FF            <1>         cmp rax, MAP_FAILED
+   747 000003D2 7416                <1>         je __Malloc_AllocFailure
+   748                              <1> 
+   749 000003D4 48890425[00000000]  <1>         mov [malloc_page], rax
+   750 000003DC 48C70425[08000000]- <1>         mov QWORD [malloc_rem], PAGE_SIZE
+   751 000003E4 00100000            <1>
+   752 000003E8 EB8D                <1>         jmp __Malloc_RetPtr
+   753                              <1> 
+   754                              <1> __Malloc_AllocFailure:
+   755                              <1>         Panic 101, 'Could not allocate memory!', NL
+   756                              <2>  WriteLit STDERR, %2
+   757 000003EA EB1B                <3>  jmp %%endstr
+   758 000003EC 436F756C64206E6F74- <3>  %%str: db %2
+   759 000003F5 20616C6C6F63617465- <3>
+   760 000003FE 206D656D6F7279210A  <3>
+   761                              <3>  %%endstr:
+   762 00000407 B801000000          <3>  mov rax, SYS_WRITE
+   763 0000040C BF02000000          <3>  mov rdi, %1
+   764 00000411 48BE-               <3>  mov rsi, %%str
+   765 00000413 [EC03000000000000]  <3>
+   766 0000041B BA1B000000          <3>  mov rdx, %%endstr-%%str
+   767 00000420 0F05                <3>  syscall
+   768                              <2> 
+   769 00000422 B83C000000          <2>  mov rax, SYS_EXIT
+   770 00000427 BF65000000          <2>  mov rdi, %1
+   771 0000042C 0F05                <2>  syscall
+   772                              <1> 
+   773                              <1> ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   774                              <1> ;;; String Builder Routines ;;;
+   775                              <1> ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+   776                              <1> 
+   777                              <1>         section .data
+   778 00000010 0000000000000000    <1> string_start:   dq      0
+   779 00000018 0000000000000000    <1> string_end:     dq      0
+   780                              <1> 
+   781                              <1>         section .text
+   782                              <1> ;;; Add a character to the current string buffer,
+   783                              <1> ;;; Re-allocating the string buffer if the current page runs out of space.
+   784                              <1> ;;; Is built on the super-sketchy internals of Malloc and Malloc_Unaligned
+   785                              <1> ;;; above, which is why it is here, rather than in string.asm. If those
+   786                              <1> ;;; are changed, this will almost certainly explode.
+   787                              <1> StringBuilder_Addc:
+   788                              <1>         fn r12                  ; r12 = the character
+   789                              <2>  fn
+   790                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   791                              <4>  %rep %0
+   792                              <4>  push %1
+   793                              <4>  %rotate 1
+   794                              <4>  %endrep
+   795 0000042E 55                  <5>  push %1
+   796                              <5>  %rotate 1
+   797 0000042F 53                  <5>  push %1
+   798                              <5>  %rotate 1
+   799 00000430 4154                <5>  push %1
+   800                              <5>  %rotate 1
+   801 00000432 4155                <5>  push %1
+   802                              <5>  %rotate 1
+   803 00000434 4156                <5>  push %1
+   804                              <5>  %rotate 1
+   805 00000436 4157                <5>  push %1
+   806                              <5>  %rotate 1
+   807 00000438 4889E5              <3>  mov rbp, rsp
+   808 0000043B 4989FC              <2>  mov %1, rdi
+   809 0000043E 48833C25[10000000]- <1>         cmp QWORD [string_start], 0
+   810 00000446 00                  <1>
+   811 00000447 7421                <1>         je __StringBuilder_Addc_New_Alloc
+   812                              <1> 
+   813 00000449 48833C25[08000000]- <1>         cmp QWORD [malloc_rem], 0
+   814 00000451 00                  <1>
+   815 00000452 7416                <1>         je __StringBuilder_Addc_New_Alloc
+   816                              <1> 
+   817                              <1> __StringBuilder_Addc_Extend_Alloc:
+   818                              <1>         ;; Get the next byte from Malloc_Unaligned
+   819                              <1>         fcall Malloc_Unaligned, 1
+   820 00000454 BF01000000          <2>  mov rdi, %2
+   821 00000459 E8FFFEFFFF          <2>  call %1
+   822                              <1>         ;; Assert that we got back [string_end] as rax
+   823 0000045E 48390425[18000000]  <1>         cmp QWORD [string_end], rax
+   824 00000466 756C                <1>         jne __StringBuilder_Addc_Failure
+   825                              <1> 
+   826 00000468 EB4A                <1>         jmp __StringBuilder_Addc_Write
+   827                              <1> 
+   828                              <1> __StringBuilder_Addc_New_Alloc:
+   829                              <1>         ;; Length into r13
+   830 0000046A 4C8B2C25[18000000]  <1>         mov r13, [string_end]
+   831 00000472 4C2B2C25[10000000]  <1>         sub r13, [string_start]
+   832                              <1> 
+   833 0000047A 4C89E8              <1>         mov rax, r13
+   834 0000047D 4883C001            <1>         add rax, 1
+   835                              <1>         fcall Malloc_Unaligned, rax
+   836 00000481 4889C7              <2>  mov rdi, %2
+   837 00000484 E8D4FEFFFF          <2>  call %1
+   838 00000489 4989C6              <1>         mov r14, rax
+   839                              <1>         fcall MemCpy, [string_start], r14, r13
+   840 0000048C 488B3C25[10000000]  <2>  mov rdi, %2
+   841 00000494 4C89F6              <2>  mov rsi, %3
+   842 00000497 4C89EA              <2>  mov rdx, %4
+   843 0000049A E81AFEFFFF          <2>  call %1
+   844                              <1> 
+   845 0000049F 4D01F5              <1>         add r13, r14
+   846 000004A2 4C892C25[18000000]  <1>         mov [string_end], r13
+   847 000004AA 4C893425[10000000]  <1>         mov [string_start], r14
+   848 000004B2 EB00                <1>         jmp __StringBuilder_Addc_Write
+   849                              <1> 
+   850                              <1> __StringBuilder_Addc_Write:
+   851                              <1>         ;; Write out the character to memory
+   852 000004B4 4C8B2C25[18000000]  <1>         mov r13, [string_end]
+   853 000004BC 45886500            <1>         mov BYTE [r13], r12b
+   854                              <1>         ;; Increment the string end value
+   855 000004C0 48830425[18000000]- <1>         add QWORD [string_end], 1
+   856 000004C8 01                  <1>
+   857                              <1>         fnret
+   858                              <2>  multipop rbp, rbx, r12, r13, r14, r15
+   859                              <3>  %rep %0
+   860                              <3>  %rotate -1
+   861                              <3>  pop %1
+   862                              <3>  %endrep
+   863                              <4>  %rotate -1
+   864 000004C9 415F                <4>  pop %1
+   865                              <4>  %rotate -1
+   866 000004CB 415E                <4>  pop %1
+   867                              <4>  %rotate -1
+   868 000004CD 415D                <4>  pop %1
+   869                              <4>  %rotate -1
+   870 000004CF 415C                <4>  pop %1
+   871                              <4>  %rotate -1
+   872 000004D1 5B                  <4>  pop %1
+   873                              <4>  %rotate -1
+   874 000004D2 5D                  <4>  pop %1
+   875 000004D3 C3                  <2>  ret
+   876                              <1> 
+   877                              <1> __StringBuilder_Addc_Failure:
+   878                              <1>         Panic 101, 'Could not add character!', NL
+   879                              <2>  WriteLit STDERR, %2
+   880 000004D4 EB19                <3>  jmp %%endstr
+   881 000004D6 436F756C64206E6F74- <3>  %%str: db %2
+   882 000004DF 206164642063686172- <3>
+   883 000004E8 6163746572210A      <3>
+   884                              <3>  %%endstr:
+   885 000004EF B801000000          <3>  mov rax, SYS_WRITE
+   886 000004F4 BF02000000          <3>  mov rdi, %1
+   887 000004F9 48BE-               <3>  mov rsi, %%str
+   888 000004FB [D604000000000000]  <3>
+   889 00000503 BA19000000          <3>  mov rdx, %%endstr-%%str
+   890 00000508 0F05                <3>  syscall
+   891                              <2> 
+   892 0000050A B83C000000          <2>  mov rax, SYS_EXIT
+   893 0000050F BF65000000          <2>  mov rdi, %1
+   894 00000514 0F05                <2>  syscall
+   895                              <1> 
+   896                              <1> ;;; Finish the current string, returning the pointer to the start of the string
+   897                              <1> StringBuilder_Done:
+   898                              <1>         fn
+   899                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+   900                              <3>  %rep %0
+   901                              <3>  push %1
+   902                              <3>  %rotate 1
+   903                              <3>  %endrep
+   904 00000516 55                  <4>  push %1
+   905                              <4>  %rotate 1
+   906 00000517 53                  <4>  push %1
+   907                              <4>  %rotate 1
+   908 00000518 4154                <4>  push %1
+   909                              <4>  %rotate 1
+   910 0000051A 4155                <4>  push %1
+   911                              <4>  %rotate 1
+   912 0000051C 4156                <4>  push %1
+   913                              <4>  %rotate 1
+   914 0000051E 4157                <4>  push %1
+   915                              <4>  %rotate 1
+   916 00000520 4889E5              <2>  mov rbp, rsp
+   917                              <1>         ;; Add a trailing null character
+   918                              <1>         fcall StringBuilder_Addc, 0
+   919 00000523 BF00000000          <2>  mov rdi, %2
+   920 00000528 E801FFFFFF          <2>  call %1
+   921                              <1>         ;; Get the string's start
+   922 0000052D 4C8B2425[10000000]  <1>         mov r12, [string_start]
+   923                              <1>         ;; Reset the global state
+   924 00000535 48C70425[10000000]- <1>         mov QWORD [string_start], 0
+   925 0000053D 00000000            <1>
+   926 00000541 48C70425[18000000]- <1>         mov QWORD [string_end], 0
+   927 00000549 00000000            <1>
+   928                              <1>         ;; Return the pointer to the string
+   929                              <1>         fnret r12
+   930 0000054D 4C89E0              <2>  mov rax, %1
+   931                              <2>  fnret
+   932                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+   933                              <4>  %rep %0
+   934                              <4>  %rotate -1
+   935                              <4>  pop %1
+   936                              <4>  %endrep
+   937                              <5>  %rotate -1
+   938 00000550 415F                <5>  pop %1
+   939                              <5>  %rotate -1
+   940 00000552 415E                <5>  pop %1
+   941                              <5>  %rotate -1
+   942 00000554 415D                <5>  pop %1
+   943                              <5>  %rotate -1
+   944 00000556 415C                <5>  pop %1
+   945                              <5>  %rotate -1
+   946 00000558 5B                  <5>  pop %1
+   947                              <5>  %rotate -1
+   948 00000559 5D                  <5>  pop %1
+   949 0000055A C3                  <3>  ret
+   950                                  %include "string.asm"
+   951                              <1>         section text
+   952                              <1> ;;; Get the length of the input string
+   953                              <1> StrLen:
+   954                              <1>         fn r12                  ; r12 = string
+   955                              <2>  fn
+   956                              <3>  multipush rbp, rbx, r12, r13, r14, r15
+   957                              <4>  %rep %0
+   958                              <4>  push %1
+   959                              <4>  %rotate 1
+   960                              <4>  %endrep
+   961 00000000 55                  <5>  push %1
+   962                              <5>  %rotate 1
+   963 00000001 53                  <5>  push %1
+   964                              <5>  %rotate 1
+   965 00000002 4154                <5>  push %1
+   966                              <5>  %rotate 1
+   967 00000004 4155                <5>  push %1
+   968                              <5>  %rotate 1
+   969 00000006 4156                <5>  push %1
+   970                              <5>  %rotate 1
+   971 00000008 4157                <5>  push %1
+   972                              <5>  %rotate 1
+   973 0000000A 4889E5              <3>  mov rbp, rsp
+   974 0000000D 4989FC              <2>  mov %1, rdi
+   975 00000010 B800000000          <1>         mov rax, 0
+   976                              <1> __StrLen_Loop:
+   977 00000015 41803C2400          <1>         cmp BYTE [r12], 0
+   978 0000001A 740A                <1>         je __StrLen_Done
+   979 0000001C 4883C001            <1>         add rax, 1
+   980 00000020 4983C401            <1>         add r12, 1
+   981 00000024 EBEF                <1>         jmp __StrLen_Loop
+   982                              <1> __StrLen_Done:
+   983                              <1>         fnret rax
+   984 00000026 4889C0              <2>  mov rax, %1
+   985                              <2>  fnret
+   986                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+   987                              <4>  %rep %0
+   988                              <4>  %rotate -1
+   989                              <4>  pop %1
+   990                              <4>  %endrep
+   991                              <5>  %rotate -1
+   992 00000029 415F                <5>  pop %1
+   993                              <5>  %rotate -1
+   994 0000002B 415E                <5>  pop %1
+   995                              <5>  %rotate -1
+   996 0000002D 415D                <5>  pop %1
+   997                              <5>  %rotate -1
+   998 0000002F 415C                <5>  pop %1
+   999                              <5>  %rotate -1
+  1000 00000031 5B                  <5>  pop %1
+  1001                              <5>  %rotate -1
+  1002 00000032 5D                  <5>  pop %1
+  1003 00000033 C3                  <3>  ret
+  1004                              <1> 
+  1005                              <1> ;;; Compare the two strings
+  1006                              <1> StrCmp:
+  1007                              <1>         fn r12, r13             ; r12 = string 1, r13 = string 2
+  1008                              <2>  fn %1
+  1009                              <3>  fn
+  1010                              <4>  multipush rbp, rbx, r12, r13, r14, r15
+  1011                              <5>  %rep %0
+  1012                              <5>  push %1
+  1013                              <5>  %rotate 1
+  1014                              <5>  %endrep
+  1015 00000034 55                  <6>  push %1
+  1016                              <6>  %rotate 1
+  1017 00000035 53                  <6>  push %1
+  1018                              <6>  %rotate 1
+  1019 00000036 4154                <6>  push %1
+  1020                              <6>  %rotate 1
+  1021 00000038 4155                <6>  push %1
+  1022                              <6>  %rotate 1
+  1023 0000003A 4156                <6>  push %1
+  1024                              <6>  %rotate 1
+  1025 0000003C 4157                <6>  push %1
+  1026                              <6>  %rotate 1
+  1027 0000003E 4889E5              <4>  mov rbp, rsp
+  1028 00000041 4989FC              <3>  mov %1, rdi
+  1029 00000044 4989F5              <2>  mov %2, rsi
+  1030                              <1> __StrCmp_Main:
+  1031 00000047 498B0424            <1>         mov rax, [r12]
+  1032 0000004B 498B5D00            <1>         mov rbx, [r13]
+  1033 0000004F 4829D8              <1>         sub rax, rbx
+  1034 00000052 740E                <1>         je __StrCmp_Same
+  1035                              <1> __StrCmp_Diff:
+  1036                              <1>         fnret rax
+  1037 00000054 4889C0              <2>  mov rax, %1
+  1038                              <2>  fnret
+  1039                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1040                              <4>  %rep %0
+  1041                              <4>  %rotate -1
+  1042                              <4>  pop %1
+  1043                              <4>  %endrep
+  1044                              <5>  %rotate -1
+  1045 00000057 415F                <5>  pop %1
+  1046                              <5>  %rotate -1
+  1047 00000059 415E                <5>  pop %1
+  1048                              <5>  %rotate -1
+  1049 0000005B 415D                <5>  pop %1
+  1050                              <5>  %rotate -1
+  1051 0000005D 415C                <5>  pop %1
+  1052                              <5>  %rotate -1
+  1053 0000005F 5B                  <5>  pop %1
+  1054                              <5>  %rotate -1
+  1055 00000060 5D                  <5>  pop %1
+  1056 00000061 C3                  <3>  ret
+  1057                              <1> __StrCmp_Same:
+  1058 00000062 4883FB00            <1>         cmp rbx, 0              ; End of the string!
+  1059 00000066 740A                <1>         je __StrCmp_Eq
+  1060                              <1>         ;; Loop back around with incremented args
+  1061 00000068 4983C401            <1>         add r12, 1
+  1062 0000006C 4983C501            <1>         add r13, 1
+  1063 00000070 EBD5                <1>         jmp __StrCmp_Main
+  1064                              <1> __StrCmp_Eq:
+  1065                              <1>         fnret 0
+  1066 00000072 B800000000          <2>  mov rax, %1
+  1067                              <2>  fnret
+  1068                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1069                              <4>  %rep %0
+  1070                              <4>  %rotate -1
+  1071                              <4>  pop %1
+  1072                              <4>  %endrep
+  1073                              <5>  %rotate -1
+  1074 00000077 415F                <5>  pop %1
+  1075                              <5>  %rotate -1
+  1076 00000079 415E                <5>  pop %1
+  1077                              <5>  %rotate -1
+  1078 0000007B 415D                <5>  pop %1
+  1079                              <5>  %rotate -1
+  1080 0000007D 415C                <5>  pop %1
+  1081                              <5>  %rotate -1
+  1082 0000007F 5B                  <5>  pop %1
+  1083                              <5>  %rotate -1
+  1084 00000080 5D                  <5>  pop %1
+  1085 00000081 C3                  <3>  ret
+  1086                              <1> 
+  1087                              <1> ;;; Hash a string
+  1088                              <1> StrHash:
+  1089                              <1>         fn r12, r14        ; r12 = string, r14 = M
+  1090                              <2>  fn %1
+  1091                              <3>  fn
+  1092                              <4>  multipush rbp, rbx, r12, r13, r14, r15
+  1093                              <5>  %rep %0
+  1094                              <5>  push %1
+  1095                              <5>  %rotate 1
+  1096                              <5>  %endrep
+  1097 00000082 55                  <6>  push %1
+  1098                              <6>  %rotate 1
+  1099 00000083 53                  <6>  push %1
+  1100                              <6>  %rotate 1
+  1101 00000084 4154                <6>  push %1
+  1102                              <6>  %rotate 1
+  1103 00000086 4155                <6>  push %1
+  1104                              <6>  %rotate 1
+  1105 00000088 4156                <6>  push %1
+  1106                              <6>  %rotate 1
+  1107 0000008A 4157                <6>  push %1
+  1108                              <6>  %rotate 1
+  1109 0000008C 4889E5              <4>  mov rbp, rsp
+  1110 0000008F 4989FC              <3>  mov %1, rdi
+  1111 00000092 4989F6              <2>  mov %2, rsi
+  1112                              <1>         fcall StrLen, r12
+  1113 00000095 4C89E7              <2>  mov rdi, %2
+  1114 00000098 E863FFFFFF          <2>  call %1
+  1115 0000009D 4989C5              <1>         mov r13, rax
+  1116                              <1> 
+  1117                              <1>         ;; Accumulate the u32 components
+  1118 000000A0 B800000000          <1>         mov rax, 0
+  1119                              <1> __StrHash_DWORD_Loop:
+  1120 000000A5 4983FD04            <1>         cmp r13, 4              ; If we have < 4 chars left, we're done
+  1121 000000A9 7C17                <1>         jl __StrHash_DWORD_Done
+  1122                              <1> 
+  1123 000000AB 41BF00000000        <1>         mov r15, 0              ; Clear r15 (so high bits are 0)
+  1124 000000B1 458B3C24            <1>         mov r15d, [r12]         ; Load a DWORD into r15
+  1125 000000B5 4C01F8              <1>         add rax, r15            ; add rax to r15
+  1126                              <1> 
+  1127                              <1>         ;; Increment ptr, and decrement length
+  1128 000000B8 4983C404            <1>         add r12, 4              ; inc str ptr
+  1129 000000BC 4983ED04            <1>         sub r13, 4              ; dec length
+  1130 000000C0 EBE3                <1>         jmp __StrHash_DWORD_Loop
+  1131                              <1> __StrHash_DWORD_Done:
+  1132                              <1> 
+  1133                              <1> __StrHash_BYTE_Loop:
+  1134 000000C2 4983FD01            <1>         cmp r13, 1
+  1135 000000C6 7C17                <1>         jl __StrHash_BYTE_Done
+  1136                              <1> 
+  1137 000000C8 41BF00000000        <1>         mov r15, 0              ; Store a 0 into r15 (as mov into r15b doesn't clear high bits)
+  1138 000000CE 458A3C24            <1>         mov r15b, [r12]         ; Load a BYTE into r15
+  1139 000000D2 4C01F8              <1>         add rax, r15            ; Add it to rax
+  1140                              <1> 
+  1141                              <1>         ;; Increment ptr, and decrement length
+  1142 000000D5 4983C401            <1>         add r12, 1
+  1143 000000D9 4983ED01            <1>         sub r13, 1
+  1144 000000DD EBE3                <1>         jmp __StrHash_BYTE_Loop
+  1145                              <1> __StrHash_BYTE_Done:
+  1146                              <1>         ;; rax contains the value we are dividing
+  1147 000000DF BA00000000          <1>         mov rdx, 0
+  1148 000000E4 49F7F6              <1>         div QWORD r14
+  1149                              <1>         fnret rdx               ; rdx will contain remainder
+  1150 000000E7 4889D0              <2>  mov rax, %1
+  1151                              <2>  fnret
+  1152                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1153                              <4>  %rep %0
+  1154                              <4>  %rotate -1
+  1155                              <4>  pop %1
+  1156                              <4>  %endrep
+  1157                              <5>  %rotate -1
+  1158 000000EA 415F                <5>  pop %1
+  1159                              <5>  %rotate -1
+  1160 000000EC 415E                <5>  pop %1
+  1161                              <5>  %rotate -1
+  1162 000000EE 415D                <5>  pop %1
+  1163                              <5>  %rotate -1
+  1164 000000F0 415C                <5>  pop %1
+  1165                              <5>  %rotate -1
+  1166 000000F2 5B                  <5>  pop %1
+  1167                              <5>  %rotate -1
+  1168 000000F3 5D                  <5>  pop %1
+  1169 000000F4 C3                  <3>  ret
+  1170                              <1>         fn r12, r13             ; r12 = string, r13 = M
+  1171                              <2>  fn %1
+  1172                              <3>  fn
+  1173                              <4>  multipush rbp, rbx, r12, r13, r14, r15
+  1174                              <5>  %rep %0
+  1175                              <5>  push %1
+  1176                              <5>  %rotate 1
+  1177                              <5>  %endrep
+  1178 000000F5 55                  <6>  push %1
+  1179                              <6>  %rotate 1
+  1180 000000F6 53                  <6>  push %1
+  1181                              <6>  %rotate 1
+  1182 000000F7 4154                <6>  push %1
+  1183                              <6>  %rotate 1
+  1184 000000F9 4155                <6>  push %1
+  1185                              <6>  %rotate 1
+  1186 000000FB 4156                <6>  push %1
+  1187                              <6>  %rotate 1
+  1188 000000FD 4157                <6>  push %1
+  1189                              <6>  %rotate 1
+  1190 000000FF 4889E5              <4>  mov rbp, rsp
+  1191 00000102 4989FC              <3>  mov %1, rdi
+  1192 00000105 4989F5              <2>  mov %2, rsi
+  1193                              <1>         ;; It's a legal hash function! I swear!
+  1194                              <1>         ;; XXX: Implement
+  1195                              <1>         fnret 0
+  1196 00000108 B800000000          <2>  mov rax, %1
+  1197                              <2>  fnret
+  1198                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1199                              <4>  %rep %0
+  1200                              <4>  %rotate -1
+  1201                              <4>  pop %1
+  1202                              <4>  %endrep
+  1203                              <5>  %rotate -1
+  1204 0000010D 415F                <5>  pop %1
+  1205                              <5>  %rotate -1
+  1206 0000010F 415E                <5>  pop %1
+  1207                              <5>  %rotate -1
+  1208 00000111 415D                <5>  pop %1
+  1209                              <5>  %rotate -1
+  1210 00000113 415C                <5>  pop %1
+  1211                              <5>  %rotate -1
+  1212 00000115 5B                  <5>  pop %1
+  1213                              <5>  %rotate -1
+  1214 00000116 5D                  <5>  pop %1
+  1215 00000117 C3                  <3>  ret
+  1216                                  %include "intern.asm"
+  1217                              <1> ;;; XXX: We aren't using the intern table right now, because it's inconvenient compared
+  1218                              <1> ;;; to just strcmp-ing every time we want to perform a comparison.
+  1219                              <1>         section .data
+  1220                              <1> %define INTERN_HT_SIZE  (1024*1024/8)   ;1 mb
+  1221 00000020 0000000000000000-   <1> __Intern_HashTable:     times   INTERN_HT_SIZE  dq      0
+  1222 00000020 <rept>              <1>
+  1223                              <1> 
+  1224                              <1>         section .text
+  1225                              <1> Intern:
+  1226                              <1>         fn r12, r13             ; r12=string, r13=length
+  1227                              <2>  fn %1
+  1228                              <3>  fn
+  1229                              <4>  multipush rbp, rbx, r12, r13, r14, r15
+  1230                              <5>  %rep %0
+  1231                              <5>  push %1
+  1232                              <5>  %rotate 1
+  1233                              <5>  %endrep
+  1234 0000055B 55                  <6>  push %1
+  1235                              <6>  %rotate 1
+  1236 0000055C 53                  <6>  push %1
+  1237                              <6>  %rotate 1
+  1238 0000055D 4154                <6>  push %1
+  1239                              <6>  %rotate 1
+  1240 0000055F 4155                <6>  push %1
+  1241                              <6>  %rotate 1
+  1242 00000561 4156                <6>  push %1
+  1243                              <6>  %rotate 1
+  1244 00000563 4157                <6>  push %1
+  1245                              <6>  %rotate 1
+  1246 00000565 4889E5              <4>  mov rbp, rsp
+  1247 00000568 4989FC              <3>  mov %1, rdi
+  1248 0000056B 4989F5              <2>  mov %2, rsi
+  1249                              <1>         ;; Hash the string
+  1250                              <1>         fcall StrHash, r12, r13, INTERN_HT_SIZE
+  1251 0000056E 4C89E7              <2>  mov rdi, %2
+  1252 00000571 4C89EE              <2>  mov rsi, %3
+  1253 00000574 BA00000200          <2>  mov rdx, %4
+  1254 00000579 E8(82000000)        <2>  call %1
+  1255 0000057E 4989C6              <1>         mov r14, rax
+  1256                              <1> 
+  1257                              <1> __Intern_CheckSlot:
+  1258 00000581 4E8B3CF5[20000000]  <1>         mov r15, [__Intern_HashTable+r14*8]
+  1259 00000589 4983FF00            <1>         cmp r15, 0
+  1260 0000058D 7446                <1>         je __Intern_FillSlot
+  1261                              <1> 
+  1262                              <1> __Intern_CompStr:
+  1263                              <1>         ;; Compare if the lengths are the same
+  1264 0000058F 4D396FF8            <1>         cmp [r15-8], r13
+  1265 00000593 752B                <1>         jne __Intern_NextSlot
+  1266 00000595 4D89FA              <1>         mov r10, r15
+  1267 00000598 4D89E3              <1>         mov r11, r12
+  1268 0000059B 4C89E8              <1>         mov rax, r13
+  1269                              <1> 
+  1270                              <1> __Intern_CompStr_Loop:
+  1271 0000059E 4883F800            <1>         cmp rax, 0
+  1272 000005A2 7E0E                <1>         jle __Intern_FoundMatch
+  1273 000005A4 4883E801            <1>         sub rax, 1
+  1274 000005A8 418A0B              <1>         mov cl, [r11]
+  1275 000005AB 41380A              <1>         cmp [r10], cl
+  1276 000005AE 74EE                <1>         je __Intern_CompStr_Loop
+  1277 000005B0 EB0E                <1>         jmp __Intern_NextSlot
+  1278                              <1> 
+  1279                              <1> __Intern_FoundMatch:
+  1280                              <1>         ;; The value we found matches the value we were passed
+  1281                              <1>         ;; We can return the existing address!
+  1282                              <1>         fnret r15
+  1283 000005B2 4C89F8              <2>  mov rax, %1
+  1284                              <2>  fnret
+  1285                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1286                              <4>  %rep %0
+  1287                              <4>  %rotate -1
+  1288                              <4>  pop %1
+  1289                              <4>  %endrep
+  1290                              <5>  %rotate -1
+  1291 000005B5 415F                <5>  pop %1
+  1292                              <5>  %rotate -1
+  1293 000005B7 415E                <5>  pop %1
+  1294                              <5>  %rotate -1
+  1295 000005B9 415D                <5>  pop %1
+  1296                              <5>  %rotate -1
+  1297 000005BB 415C                <5>  pop %1
+  1298                              <5>  %rotate -1
+  1299 000005BD 5B                  <5>  pop %1
+  1300                              <5>  %rotate -1
+  1301 000005BE 5D                  <5>  pop %1
+  1302 000005BF C3                  <3>  ret
+  1303                              <1> 
+  1304                              <1> __Intern_NextSlot:
+  1305                              <1>         ;; Increment r14 to the next valid slot
+  1306 000005C0 4983C601            <1>         add r14, 1
+  1307                              <1>         ;; TODO(michael): This should probably be done with div
+  1308 000005C4 4981FE00000200      <1>         cmp r14, INTERN_HT_SIZE
+  1309 000005CB 7CB4                <1>         jl __Intern_CheckSlot
+  1310 000005CD 41BE00000000        <1>         mov r14, 0
+  1311 000005D3 EBAC                <1>         jmp __Intern_CheckSlot
+  1312                              <1> 
+  1313                              <1> __Intern_FillSlot:
+  1314 000005D5 4C89E8              <1>         mov rax, r13
+  1315 000005D8 4883C008            <1>         add rax, 8              ; Add enough space for length header
+  1316                              <1>         fcall Malloc, rax
+  1317 000005DC 4889C7              <2>  mov rdi, %2
+  1318 000005DF E812FDFFFF          <2>  call %1
+  1319                              <1> 
+  1320 000005E4 4C8928              <1>         mov [rax], r13          ; Store the string's length
+  1321 000005E7 4883C008            <1>         add rax, 8              ; Move the ptr past the string's length
+  1322 000005EB 4A8904F5[20000000]  <1>         mov [__Intern_HashTable+r14*8], rax ; Save the pointer in the HashTable
+  1323                              <1> 
+  1324 000005F3 4989C7              <1>         mov r15, rax            ; Save the pointer in r15 for returning
+  1325                              <1> 
+  1326                              <1> __Intern_CopyChr_Loop:
+  1327 000005F6 4983FD00            <1>         cmp r13, 0              ; Check if we have 0 chars left
+  1328 000005FA 7E14                <1>         jle __Intern_CopyChr_Done
+  1329                              <1> 
+  1330 000005FC 418A0C24            <1>         mov cl, [r12]
+  1331 00000600 8808                <1>         mov BYTE [rax], cl
+  1332 00000602 4883C001            <1>         add rax, 1
+  1333 00000606 4983C401            <1>         add r12, 1
+  1334 0000060A 4983ED01            <1>         sub r13, 1
+  1335 0000060E EBE6                <1>         jmp __Intern_CopyChr_Loop
+  1336                              <1> 
+  1337                              <1> __Intern_CopyChr_Done:
+  1338                              <1>         fnret r15               ; Return that pointer
+  1339 00000610 4C89F8              <2>  mov rax, %1
+  1340                              <2>  fnret
+  1341                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  1342                              <4>  %rep %0
+  1343                              <4>  %rotate -1
+  1344                              <4>  pop %1
+  1345                              <4>  %endrep
+  1346                              <5>  %rotate -1
+  1347 00000613 415F                <5>  pop %1
+  1348                              <5>  %rotate -1
+  1349 00000615 415E                <5>  pop %1
+  1350                              <5>  %rotate -1
+  1351 00000617 415D                <5>  pop %1
+  1352                              <5>  %rotate -1
+  1353 00000619 415C                <5>  pop %1
+  1354                              <5>  %rotate -1
+  1355 0000061B 5B                  <5>  pop %1
+  1356                              <5>  %rotate -1
+  1357 0000061C 5D                  <5>  pop %1
+  1358 0000061D C3                  <3>  ret
+  1359                                  %include "lexer.asm"
+  1360                              <1>         section .text
+  1361                              <1> enum TOKEN
+  1362                              <2>  %assign cnt 0
+  1363                              <2>  %xdefine ENAME %1
+  1364                              <1>         ;; Dumb Tokens (no data)
+  1365                              <1>         opt LBRACE
+  1366                              <2>  %xdefine ENAME_%1 cnt
+  1367                              <2>  %defstr ENAME_cnt_NAME %1
+  1368                              <2>  %assign cnt cnt+1
+  1369                              <1>         opt RBRACE
+  1370                              <2>  %xdefine ENAME_%1 cnt
+  1371                              <2>  %defstr ENAME_cnt_NAME %1
+  1372                              <2>  %assign cnt cnt+1
+  1373                              <1>         opt LPAREN
+  1374                              <2>  %xdefine ENAME_%1 cnt
+  1375                              <2>  %defstr ENAME_cnt_NAME %1
+  1376                              <2>  %assign cnt cnt+1
+  1377                              <1>         opt RPAREN
+  1378                              <2>  %xdefine ENAME_%1 cnt
+  1379                              <2>  %defstr ENAME_cnt_NAME %1
+  1380                              <2>  %assign cnt cnt+1
+  1381                              <1>         opt LBRACKET
+  1382                              <2>  %xdefine ENAME_%1 cnt
+  1383                              <2>  %defstr ENAME_cnt_NAME %1
+  1384                              <2>  %assign cnt cnt+1
+  1385                              <1>         opt RBRACKET
+  1386                              <2>  %xdefine ENAME_%1 cnt
+  1387                              <2>  %defstr ENAME_cnt_NAME %1
+  1388                              <2>  %assign cnt cnt+1
+  1389                              <1> 
+  1390                              <1>         ;; Symbols
+  1391                              <1>         opt NOT
+  1392                              <2>  %xdefine ENAME_%1 cnt
+  1393                              <2>  %defstr ENAME_cnt_NAME %1
+  1394                              <2>  %assign cnt cnt+1
+  1395                              <1>         opt HASH
+  1396                              <2>  %xdefine ENAME_%1 cnt
+  1397                              <2>  %defstr ENAME_cnt_NAME %1
+  1398                              <2>  %assign cnt cnt+1
+  1399                              <1>         opt MODULO
+  1400                              <2>  %xdefine ENAME_%1 cnt
+  1401                              <2>  %defstr ENAME_cnt_NAME %1
+  1402                              <2>  %assign cnt cnt+1
+  1403                              <1>         opt AND
+  1404                              <2>  %xdefine ENAME_%1 cnt
+  1405                              <2>  %defstr ENAME_cnt_NAME %1
+  1406                              <2>  %assign cnt cnt+1
+  1407                              <1>         opt STAR
+  1408                              <2>  %xdefine ENAME_%1 cnt
+  1409                              <2>  %defstr ENAME_cnt_NAME %1
+  1410                              <2>  %assign cnt cnt+1
+  1411                              <1>         opt PLUS
+  1412                              <2>  %xdefine ENAME_%1 cnt
+  1413                              <2>  %defstr ENAME_cnt_NAME %1
+  1414                              <2>  %assign cnt cnt+1
+  1415                              <1>         opt DASH
+  1416                              <2>  %xdefine ENAME_%1 cnt
+  1417                              <2>  %defstr ENAME_cnt_NAME %1
+  1418                              <2>  %assign cnt cnt+1
+  1419                              <1>         opt DOT
+  1420                              <2>  %xdefine ENAME_%1 cnt
+  1421                              <2>  %defstr ENAME_cnt_NAME %1
+  1422                              <2>  %assign cnt cnt+1
+  1423                              <1>         opt COMMA
+  1424                              <2>  %xdefine ENAME_%1 cnt
+  1425                              <2>  %defstr ENAME_cnt_NAME %1
+  1426                              <2>  %assign cnt cnt+1
+  1427                              <1>         opt SLASH
+  1428                              <2>  %xdefine ENAME_%1 cnt
+  1429                              <2>  %defstr ENAME_cnt_NAME %1
+  1430                              <2>  %assign cnt cnt+1
+  1431                              <1>         opt COLON
+  1432                              <2>  %xdefine ENAME_%1 cnt
+  1433                              <2>  %defstr ENAME_cnt_NAME %1
+  1434                              <2>  %assign cnt cnt+1
+  1435                              <1>         opt SEMI
+  1436                              <2>  %xdefine ENAME_%1 cnt
+  1437                              <2>  %defstr ENAME_cnt_NAME %1
+  1438                              <2>  %assign cnt cnt+1
+  1439                              <1>         opt LT
+  1440                              <2>  %xdefine ENAME_%1 cnt
+  1441                              <2>  %defstr ENAME_cnt_NAME %1
+  1442                              <2>  %assign cnt cnt+1
+  1443                              <1>         opt EQ
+  1444                              <2>  %xdefine ENAME_%1 cnt
+  1445                              <2>  %defstr ENAME_cnt_NAME %1
+  1446                              <2>  %assign cnt cnt+1
+  1447                              <1>         opt GT
+  1448                              <2>  %xdefine ENAME_%1 cnt
+  1449                              <2>  %defstr ENAME_cnt_NAME %1
+  1450                              <2>  %assign cnt cnt+1
+  1451                              <1>         opt QMARK
+  1452                              <2>  %xdefine ENAME_%1 cnt
+  1453                              <2>  %defstr ENAME_cnt_NAME %1
+  1454                              <2>  %assign cnt cnt+1
+  1455                              <1>         opt AT
+  1456                              <2>  %xdefine ENAME_%1 cnt
+  1457                              <2>  %defstr ENAME_cnt_NAME %1
+  1458                              <2>  %assign cnt cnt+1
+  1459                              <1>         opt CARET
+  1460                              <2>  %xdefine ENAME_%1 cnt
+  1461                              <2>  %defstr ENAME_cnt_NAME %1
+  1462                              <2>  %assign cnt cnt+1
+  1463                              <1>         opt BAR
+  1464                              <2>  %xdefine ENAME_%1 cnt
+  1465                              <2>  %defstr ENAME_cnt_NAME %1
+  1466                              <2>  %assign cnt cnt+1
+  1467                              <1>         opt TILDE
+  1468                              <2>  %xdefine ENAME_%1 cnt
+  1469                              <2>  %defstr ENAME_cnt_NAME %1
+  1470                              <2>  %assign cnt cnt+1
+  1471                              <1> 
+  1472                              <1>         ;; Special, Tokens (have data)
+  1473                              <1>         opt IDENT
+  1474                              <2>  %xdefine ENAME_%1 cnt
+  1475                              <2>  %defstr ENAME_cnt_NAME %1
+  1476                              <2>  %assign cnt cnt+1
+  1477                              <1>         opt STRING
+  1478                              <2>  %xdefine ENAME_%1 cnt
+  1479                              <2>  %defstr ENAME_cnt_NAME %1
+  1480                              <2>  %assign cnt cnt+1
+  1481                              <1>         opt NUMBER
+  1482                              <2>  %xdefine ENAME_%1 cnt
+  1483                              <2>  %defstr ENAME_cnt_NAME %1
+  1484                              <2>  %assign cnt cnt+1
+  1485                              <1> 
+  1486                              <1>         ;; Special Cases
+  1487                              <1>         opt EOF
+  1488                              <2>  %xdefine ENAME_%1 cnt
+  1489                              <2>  %defstr ENAME_cnt_NAME %1
+  1490                              <2>  %assign cnt cnt+1
+  1491                              <1>         opt IGNORE
+  1492                              <2>  %xdefine ENAME_%1 cnt
+  1493                              <2>  %defstr ENAME_cnt_NAME %1
+  1494                              <2>  %assign cnt cnt+1
+  1495                              <1>         opt INVALID
+  1496                              <2>  %xdefine ENAME_%1 cnt
+  1497                              <2>  %defstr ENAME_cnt_NAME %1
+  1498                              <2>  %assign cnt cnt+1
+  1499                              <1> 
+  1500                              <1>         ;; The number of items in the TOKEN enum
+  1501                              <1>         opt COUNT
+  1502                              <2>  %xdefine ENAME_%1 cnt
+  1503                              <2>  %defstr ENAME_cnt_NAME %1
+  1504                              <2>  %assign cnt cnt+1
+  1505                              <1> endenum
+  1506                              <2> 
+  1507                              <2> PrintENAME:
+  1508                              <2>  fn r12
+  1509                              <3>  fn
+  1510                              <4>  multipush rbp, rbx, r12, r13, r14, r15
+  1511                              <5>  %rep %0
+  1512                              <5>  push %1
+  1513                              <5>  %rotate 1
+  1514                              <5>  %endrep
+  1515 0000061E 55                  <6>  push %1
+  1516                              <6>  %rotate 1
+  1517 0000061F 53                  <6>  push %1
+  1518                              <6>  %rotate 1
+  1519 00000620 4154                <6>  push %1
+  1520                              <6>  %rotate 1
+  1521 00000622 4155                <6>  push %1
+  1522                              <6>  %rotate 1
+  1523 00000624 4156                <6>  push %1
+  1524                              <6>  %rotate 1
+  1525 00000626 4157                <6>  push %1
+  1526                              <6>  %rotate 1
+  1527 00000628 4889E5              <4>  mov rbp, rsp
+  1528 0000062B 4989FC              <3>  mov %1, rdi
+  1529                              <2>  %rep cnt
+  1530                              <2>  %push enum_item
+  1531                              <2>  %assign cnt cnt-1
+  1532                              <2>  cmp r12, cnt
+  1533                              <2>  jne %$Next
+  1534                              <2>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1535                              <2>  jmp %%Done
+  1536                              <2>  %$Next:
+  1537                              <2>  %pop
+  1538                              <2>  %endrep
+  1539                              <3>  %push enum_item
+  1540                              <3>  %assign cnt cnt-1
+  1541 0000062E 4983FC20            <3>  cmp r12, cnt
+  1542 00000632 7528                <3>  jne %$Next
+  1543                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1544 00000634 EB06                <4>  jmp %%endstr
+  1545 00000636 434F554E540A        <4>  %%str: db %2
+  1546                              <4>  %%endstr:
+  1547 0000063C B801000000          <4>  mov rax, SYS_WRITE
+  1548 00000641 BF01000000          <4>  mov rdi, %1
+  1549 00000646 48BE-               <4>  mov rsi, %%str
+  1550 00000648 [3606000000000000]  <4>
+  1551 00000650 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1552 00000655 0F05                <4>  syscall
+  1553 00000657 E9AC050000          <3>  jmp %%Done
+  1554                              <3>  %$Next:
+  1555                              <3>  %pop
+  1556                              <3>  %push enum_item
+  1557                              <3>  %assign cnt cnt-1
+  1558 0000065C 4983FC1F            <3>  cmp r12, cnt
+  1559 00000660 752A                <3>  jne %$Next
+  1560                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1561 00000662 EB08                <4>  jmp %%endstr
+  1562 00000664 494E56414C49440A    <4>  %%str: db %2
+  1563                              <4>  %%endstr:
+  1564 0000066C B801000000          <4>  mov rax, SYS_WRITE
+  1565 00000671 BF01000000          <4>  mov rdi, %1
+  1566 00000676 48BE-               <4>  mov rsi, %%str
+  1567 00000678 [6406000000000000]  <4>
+  1568 00000680 BA08000000          <4>  mov rdx, %%endstr-%%str
+  1569 00000685 0F05                <4>  syscall
+  1570 00000687 E97C050000          <3>  jmp %%Done
+  1571                              <3>  %$Next:
+  1572                              <3>  %pop
+  1573                              <3>  %push enum_item
+  1574                              <3>  %assign cnt cnt-1
+  1575 0000068C 4983FC1E            <3>  cmp r12, cnt
+  1576 00000690 7529                <3>  jne %$Next
+  1577                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1578 00000692 EB07                <4>  jmp %%endstr
+  1579 00000694 49474E4F52450A      <4>  %%str: db %2
+  1580                              <4>  %%endstr:
+  1581 0000069B B801000000          <4>  mov rax, SYS_WRITE
+  1582 000006A0 BF01000000          <4>  mov rdi, %1
+  1583 000006A5 48BE-               <4>  mov rsi, %%str
+  1584 000006A7 [9406000000000000]  <4>
+  1585 000006AF BA07000000          <4>  mov rdx, %%endstr-%%str
+  1586 000006B4 0F05                <4>  syscall
+  1587 000006B6 E94D050000          <3>  jmp %%Done
+  1588                              <3>  %$Next:
+  1589                              <3>  %pop
+  1590                              <3>  %push enum_item
+  1591                              <3>  %assign cnt cnt-1
+  1592 000006BB 4983FC1D            <3>  cmp r12, cnt
+  1593 000006BF 7526                <3>  jne %$Next
+  1594                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1595 000006C1 EB04                <4>  jmp %%endstr
+  1596 000006C3 454F460A            <4>  %%str: db %2
+  1597                              <4>  %%endstr:
+  1598 000006C7 B801000000          <4>  mov rax, SYS_WRITE
+  1599 000006CC BF01000000          <4>  mov rdi, %1
+  1600 000006D1 48BE-               <4>  mov rsi, %%str
+  1601 000006D3 [C306000000000000]  <4>
+  1602 000006DB BA04000000          <4>  mov rdx, %%endstr-%%str
+  1603 000006E0 0F05                <4>  syscall
+  1604 000006E2 E921050000          <3>  jmp %%Done
+  1605                              <3>  %$Next:
+  1606                              <3>  %pop
+  1607                              <3>  %push enum_item
+  1608                              <3>  %assign cnt cnt-1
+  1609 000006E7 4983FC1C            <3>  cmp r12, cnt
+  1610 000006EB 7529                <3>  jne %$Next
+  1611                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1612 000006ED EB07                <4>  jmp %%endstr
+  1613 000006EF 4E554D4245520A      <4>  %%str: db %2
+  1614                              <4>  %%endstr:
+  1615 000006F6 B801000000          <4>  mov rax, SYS_WRITE
+  1616 000006FB BF01000000          <4>  mov rdi, %1
+  1617 00000700 48BE-               <4>  mov rsi, %%str
+  1618 00000702 [EF06000000000000]  <4>
+  1619 0000070A BA07000000          <4>  mov rdx, %%endstr-%%str
+  1620 0000070F 0F05                <4>  syscall
+  1621 00000711 E9F2040000          <3>  jmp %%Done
+  1622                              <3>  %$Next:
+  1623                              <3>  %pop
+  1624                              <3>  %push enum_item
+  1625                              <3>  %assign cnt cnt-1
+  1626 00000716 4983FC1B            <3>  cmp r12, cnt
+  1627 0000071A 7529                <3>  jne %$Next
+  1628                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1629 0000071C EB07                <4>  jmp %%endstr
+  1630 0000071E 535452494E470A      <4>  %%str: db %2
+  1631                              <4>  %%endstr:
+  1632 00000725 B801000000          <4>  mov rax, SYS_WRITE
+  1633 0000072A BF01000000          <4>  mov rdi, %1
+  1634 0000072F 48BE-               <4>  mov rsi, %%str
+  1635 00000731 [1E07000000000000]  <4>
+  1636 00000739 BA07000000          <4>  mov rdx, %%endstr-%%str
+  1637 0000073E 0F05                <4>  syscall
+  1638 00000740 E9C3040000          <3>  jmp %%Done
+  1639                              <3>  %$Next:
+  1640                              <3>  %pop
+  1641                              <3>  %push enum_item
+  1642                              <3>  %assign cnt cnt-1
+  1643 00000745 4983FC1A            <3>  cmp r12, cnt
+  1644 00000749 7528                <3>  jne %$Next
+  1645                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1646 0000074B EB06                <4>  jmp %%endstr
+  1647 0000074D 4944454E540A        <4>  %%str: db %2
+  1648                              <4>  %%endstr:
+  1649 00000753 B801000000          <4>  mov rax, SYS_WRITE
+  1650 00000758 BF01000000          <4>  mov rdi, %1
+  1651 0000075D 48BE-               <4>  mov rsi, %%str
+  1652 0000075F [4D07000000000000]  <4>
+  1653 00000767 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1654 0000076C 0F05                <4>  syscall
+  1655 0000076E E995040000          <3>  jmp %%Done
+  1656                              <3>  %$Next:
+  1657                              <3>  %pop
+  1658                              <3>  %push enum_item
+  1659                              <3>  %assign cnt cnt-1
+  1660 00000773 4983FC19            <3>  cmp r12, cnt
+  1661 00000777 7528                <3>  jne %$Next
+  1662                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1663 00000779 EB06                <4>  jmp %%endstr
+  1664 0000077B 54494C44450A        <4>  %%str: db %2
+  1665                              <4>  %%endstr:
+  1666 00000781 B801000000          <4>  mov rax, SYS_WRITE
+  1667 00000786 BF01000000          <4>  mov rdi, %1
+  1668 0000078B 48BE-               <4>  mov rsi, %%str
+  1669 0000078D [7B07000000000000]  <4>
+  1670 00000795 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1671 0000079A 0F05                <4>  syscall
+  1672 0000079C E967040000          <3>  jmp %%Done
+  1673                              <3>  %$Next:
+  1674                              <3>  %pop
+  1675                              <3>  %push enum_item
+  1676                              <3>  %assign cnt cnt-1
+  1677 000007A1 4983FC18            <3>  cmp r12, cnt
+  1678 000007A5 7526                <3>  jne %$Next
+  1679                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1680 000007A7 EB04                <4>  jmp %%endstr
+  1681 000007A9 4241520A            <4>  %%str: db %2
+  1682                              <4>  %%endstr:
+  1683 000007AD B801000000          <4>  mov rax, SYS_WRITE
+  1684 000007B2 BF01000000          <4>  mov rdi, %1
+  1685 000007B7 48BE-               <4>  mov rsi, %%str
+  1686 000007B9 [A907000000000000]  <4>
+  1687 000007C1 BA04000000          <4>  mov rdx, %%endstr-%%str
+  1688 000007C6 0F05                <4>  syscall
+  1689 000007C8 E93B040000          <3>  jmp %%Done
+  1690                              <3>  %$Next:
+  1691                              <3>  %pop
+  1692                              <3>  %push enum_item
+  1693                              <3>  %assign cnt cnt-1
+  1694 000007CD 4983FC17            <3>  cmp r12, cnt
+  1695 000007D1 7528                <3>  jne %$Next
+  1696                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1697 000007D3 EB06                <4>  jmp %%endstr
+  1698 000007D5 43415245540A        <4>  %%str: db %2
+  1699                              <4>  %%endstr:
+  1700 000007DB B801000000          <4>  mov rax, SYS_WRITE
+  1701 000007E0 BF01000000          <4>  mov rdi, %1
+  1702 000007E5 48BE-               <4>  mov rsi, %%str
+  1703 000007E7 [D507000000000000]  <4>
+  1704 000007EF BA06000000          <4>  mov rdx, %%endstr-%%str
+  1705 000007F4 0F05                <4>  syscall
+  1706 000007F6 E90D040000          <3>  jmp %%Done
+  1707                              <3>  %$Next:
+  1708                              <3>  %pop
+  1709                              <3>  %push enum_item
+  1710                              <3>  %assign cnt cnt-1
+  1711 000007FB 4983FC16            <3>  cmp r12, cnt
+  1712 000007FF 7525                <3>  jne %$Next
+  1713                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1714 00000801 EB03                <4>  jmp %%endstr
+  1715 00000803 41540A              <4>  %%str: db %2
+  1716                              <4>  %%endstr:
+  1717 00000806 B801000000          <4>  mov rax, SYS_WRITE
+  1718 0000080B BF01000000          <4>  mov rdi, %1
+  1719 00000810 48BE-               <4>  mov rsi, %%str
+  1720 00000812 [0308000000000000]  <4>
+  1721 0000081A BA03000000          <4>  mov rdx, %%endstr-%%str
+  1722 0000081F 0F05                <4>  syscall
+  1723 00000821 E9E2030000          <3>  jmp %%Done
+  1724                              <3>  %$Next:
+  1725                              <3>  %pop
+  1726                              <3>  %push enum_item
+  1727                              <3>  %assign cnt cnt-1
+  1728 00000826 4983FC15            <3>  cmp r12, cnt
+  1729 0000082A 7528                <3>  jne %$Next
+  1730                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1731 0000082C EB06                <4>  jmp %%endstr
+  1732 0000082E 514D41524B0A        <4>  %%str: db %2
+  1733                              <4>  %%endstr:
+  1734 00000834 B801000000          <4>  mov rax, SYS_WRITE
+  1735 00000839 BF01000000          <4>  mov rdi, %1
+  1736 0000083E 48BE-               <4>  mov rsi, %%str
+  1737 00000840 [2E08000000000000]  <4>
+  1738 00000848 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1739 0000084D 0F05                <4>  syscall
+  1740 0000084F E9B4030000          <3>  jmp %%Done
+  1741                              <3>  %$Next:
+  1742                              <3>  %pop
+  1743                              <3>  %push enum_item
+  1744                              <3>  %assign cnt cnt-1
+  1745 00000854 4983FC14            <3>  cmp r12, cnt
+  1746 00000858 7525                <3>  jne %$Next
+  1747                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1748 0000085A EB03                <4>  jmp %%endstr
+  1749 0000085C 47540A              <4>  %%str: db %2
+  1750                              <4>  %%endstr:
+  1751 0000085F B801000000          <4>  mov rax, SYS_WRITE
+  1752 00000864 BF01000000          <4>  mov rdi, %1
+  1753 00000869 48BE-               <4>  mov rsi, %%str
+  1754 0000086B [5C08000000000000]  <4>
+  1755 00000873 BA03000000          <4>  mov rdx, %%endstr-%%str
+  1756 00000878 0F05                <4>  syscall
+  1757 0000087A E989030000          <3>  jmp %%Done
+  1758                              <3>  %$Next:
+  1759                              <3>  %pop
+  1760                              <3>  %push enum_item
+  1761                              <3>  %assign cnt cnt-1
+  1762 0000087F 4983FC13            <3>  cmp r12, cnt
+  1763 00000883 7525                <3>  jne %$Next
+  1764                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1765 00000885 EB03                <4>  jmp %%endstr
+  1766 00000887 45510A              <4>  %%str: db %2
+  1767                              <4>  %%endstr:
+  1768 0000088A B801000000          <4>  mov rax, SYS_WRITE
+  1769 0000088F BF01000000          <4>  mov rdi, %1
+  1770 00000894 48BE-               <4>  mov rsi, %%str
+  1771 00000896 [8708000000000000]  <4>
+  1772 0000089E BA03000000          <4>  mov rdx, %%endstr-%%str
+  1773 000008A3 0F05                <4>  syscall
+  1774 000008A5 E95E030000          <3>  jmp %%Done
+  1775                              <3>  %$Next:
+  1776                              <3>  %pop
+  1777                              <3>  %push enum_item
+  1778                              <3>  %assign cnt cnt-1
+  1779 000008AA 4983FC12            <3>  cmp r12, cnt
+  1780 000008AE 7525                <3>  jne %$Next
+  1781                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1782 000008B0 EB03                <4>  jmp %%endstr
+  1783 000008B2 4C540A              <4>  %%str: db %2
+  1784                              <4>  %%endstr:
+  1785 000008B5 B801000000          <4>  mov rax, SYS_WRITE
+  1786 000008BA BF01000000          <4>  mov rdi, %1
+  1787 000008BF 48BE-               <4>  mov rsi, %%str
+  1788 000008C1 [B208000000000000]  <4>
+  1789 000008C9 BA03000000          <4>  mov rdx, %%endstr-%%str
+  1790 000008CE 0F05                <4>  syscall
+  1791 000008D0 E933030000          <3>  jmp %%Done
+  1792                              <3>  %$Next:
+  1793                              <3>  %pop
+  1794                              <3>  %push enum_item
+  1795                              <3>  %assign cnt cnt-1
+  1796 000008D5 4983FC11            <3>  cmp r12, cnt
+  1797 000008D9 7527                <3>  jne %$Next
+  1798                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1799 000008DB EB05                <4>  jmp %%endstr
+  1800 000008DD 53454D490A          <4>  %%str: db %2
+  1801                              <4>  %%endstr:
+  1802 000008E2 B801000000          <4>  mov rax, SYS_WRITE
+  1803 000008E7 BF01000000          <4>  mov rdi, %1
+  1804 000008EC 48BE-               <4>  mov rsi, %%str
+  1805 000008EE [DD08000000000000]  <4>
+  1806 000008F6 BA05000000          <4>  mov rdx, %%endstr-%%str
+  1807 000008FB 0F05                <4>  syscall
+  1808 000008FD E906030000          <3>  jmp %%Done
+  1809                              <3>  %$Next:
+  1810                              <3>  %pop
+  1811                              <3>  %push enum_item
+  1812                              <3>  %assign cnt cnt-1
+  1813 00000902 4983FC10            <3>  cmp r12, cnt
+  1814 00000906 7528                <3>  jne %$Next
+  1815                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1816 00000908 EB06                <4>  jmp %%endstr
+  1817 0000090A 434F4C4F4E0A        <4>  %%str: db %2
+  1818                              <4>  %%endstr:
+  1819 00000910 B801000000          <4>  mov rax, SYS_WRITE
+  1820 00000915 BF01000000          <4>  mov rdi, %1
+  1821 0000091A 48BE-               <4>  mov rsi, %%str
+  1822 0000091C [0A09000000000000]  <4>
+  1823 00000924 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1824 00000929 0F05                <4>  syscall
+  1825 0000092B E9D8020000          <3>  jmp %%Done
+  1826                              <3>  %$Next:
+  1827                              <3>  %pop
+  1828                              <3>  %push enum_item
+  1829                              <3>  %assign cnt cnt-1
+  1830 00000930 4983FC0F            <3>  cmp r12, cnt
+  1831 00000934 7528                <3>  jne %$Next
+  1832                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1833 00000936 EB06                <4>  jmp %%endstr
+  1834 00000938 534C4153480A        <4>  %%str: db %2
+  1835                              <4>  %%endstr:
+  1836 0000093E B801000000          <4>  mov rax, SYS_WRITE
+  1837 00000943 BF01000000          <4>  mov rdi, %1
+  1838 00000948 48BE-               <4>  mov rsi, %%str
+  1839 0000094A [3809000000000000]  <4>
+  1840 00000952 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1841 00000957 0F05                <4>  syscall
+  1842 00000959 E9AA020000          <3>  jmp %%Done
+  1843                              <3>  %$Next:
+  1844                              <3>  %pop
+  1845                              <3>  %push enum_item
+  1846                              <3>  %assign cnt cnt-1
+  1847 0000095E 4983FC0E            <3>  cmp r12, cnt
+  1848 00000962 7528                <3>  jne %$Next
+  1849                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1850 00000964 EB06                <4>  jmp %%endstr
+  1851 00000966 434F4D4D410A        <4>  %%str: db %2
+  1852                              <4>  %%endstr:
+  1853 0000096C B801000000          <4>  mov rax, SYS_WRITE
+  1854 00000971 BF01000000          <4>  mov rdi, %1
+  1855 00000976 48BE-               <4>  mov rsi, %%str
+  1856 00000978 [6609000000000000]  <4>
+  1857 00000980 BA06000000          <4>  mov rdx, %%endstr-%%str
+  1858 00000985 0F05                <4>  syscall
+  1859 00000987 E97C020000          <3>  jmp %%Done
+  1860                              <3>  %$Next:
+  1861                              <3>  %pop
+  1862                              <3>  %push enum_item
+  1863                              <3>  %assign cnt cnt-1
+  1864 0000098C 4983FC0D            <3>  cmp r12, cnt
+  1865 00000990 7526                <3>  jne %$Next
+  1866                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1867 00000992 EB04                <4>  jmp %%endstr
+  1868 00000994 444F540A            <4>  %%str: db %2
+  1869                              <4>  %%endstr:
+  1870 00000998 B801000000          <4>  mov rax, SYS_WRITE
+  1871 0000099D BF01000000          <4>  mov rdi, %1
+  1872 000009A2 48BE-               <4>  mov rsi, %%str
+  1873 000009A4 [9409000000000000]  <4>
+  1874 000009AC BA04000000          <4>  mov rdx, %%endstr-%%str
+  1875 000009B1 0F05                <4>  syscall
+  1876 000009B3 E950020000          <3>  jmp %%Done
+  1877                              <3>  %$Next:
+  1878                              <3>  %pop
+  1879                              <3>  %push enum_item
+  1880                              <3>  %assign cnt cnt-1
+  1881 000009B8 4983FC0C            <3>  cmp r12, cnt
+  1882 000009BC 7527                <3>  jne %$Next
+  1883                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1884 000009BE EB05                <4>  jmp %%endstr
+  1885 000009C0 444153480A          <4>  %%str: db %2
+  1886                              <4>  %%endstr:
+  1887 000009C5 B801000000          <4>  mov rax, SYS_WRITE
+  1888 000009CA BF01000000          <4>  mov rdi, %1
+  1889 000009CF 48BE-               <4>  mov rsi, %%str
+  1890 000009D1 [C009000000000000]  <4>
+  1891 000009D9 BA05000000          <4>  mov rdx, %%endstr-%%str
+  1892 000009DE 0F05                <4>  syscall
+  1893 000009E0 E923020000          <3>  jmp %%Done
+  1894                              <3>  %$Next:
+  1895                              <3>  %pop
+  1896                              <3>  %push enum_item
+  1897                              <3>  %assign cnt cnt-1
+  1898 000009E5 4983FC0B            <3>  cmp r12, cnt
+  1899 000009E9 7527                <3>  jne %$Next
+  1900                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1901 000009EB EB05                <4>  jmp %%endstr
+  1902 000009ED 504C55530A          <4>  %%str: db %2
+  1903                              <4>  %%endstr:
+  1904 000009F2 B801000000          <4>  mov rax, SYS_WRITE
+  1905 000009F7 BF01000000          <4>  mov rdi, %1
+  1906 000009FC 48BE-               <4>  mov rsi, %%str
+  1907 000009FE [ED09000000000000]  <4>
+  1908 00000A06 BA05000000          <4>  mov rdx, %%endstr-%%str
+  1909 00000A0B 0F05                <4>  syscall
+  1910 00000A0D E9F6010000          <3>  jmp %%Done
+  1911                              <3>  %$Next:
+  1912                              <3>  %pop
+  1913                              <3>  %push enum_item
+  1914                              <3>  %assign cnt cnt-1
+  1915 00000A12 4983FC0A            <3>  cmp r12, cnt
+  1916 00000A16 7527                <3>  jne %$Next
+  1917                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1918 00000A18 EB05                <4>  jmp %%endstr
+  1919 00000A1A 535441520A          <4>  %%str: db %2
+  1920                              <4>  %%endstr:
+  1921 00000A1F B801000000          <4>  mov rax, SYS_WRITE
+  1922 00000A24 BF01000000          <4>  mov rdi, %1
+  1923 00000A29 48BE-               <4>  mov rsi, %%str
+  1924 00000A2B [1A0A000000000000]  <4>
+  1925 00000A33 BA05000000          <4>  mov rdx, %%endstr-%%str
+  1926 00000A38 0F05                <4>  syscall
+  1927 00000A3A E9C9010000          <3>  jmp %%Done
+  1928                              <3>  %$Next:
+  1929                              <3>  %pop
+  1930                              <3>  %push enum_item
+  1931                              <3>  %assign cnt cnt-1
+  1932 00000A3F 4983FC09            <3>  cmp r12, cnt
+  1933 00000A43 7526                <3>  jne %$Next
+  1934                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1935 00000A45 EB04                <4>  jmp %%endstr
+  1936 00000A47 414E440A            <4>  %%str: db %2
+  1937                              <4>  %%endstr:
+  1938 00000A4B B801000000          <4>  mov rax, SYS_WRITE
+  1939 00000A50 BF01000000          <4>  mov rdi, %1
+  1940 00000A55 48BE-               <4>  mov rsi, %%str
+  1941 00000A57 [470A000000000000]  <4>
+  1942 00000A5F BA04000000          <4>  mov rdx, %%endstr-%%str
+  1943 00000A64 0F05                <4>  syscall
+  1944 00000A66 E99D010000          <3>  jmp %%Done
+  1945                              <3>  %$Next:
+  1946                              <3>  %pop
+  1947                              <3>  %push enum_item
+  1948                              <3>  %assign cnt cnt-1
+  1949 00000A6B 4983FC08            <3>  cmp r12, cnt
+  1950 00000A6F 7529                <3>  jne %$Next
+  1951                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1952 00000A71 EB07                <4>  jmp %%endstr
+  1953 00000A73 4D4F44554C4F0A      <4>  %%str: db %2
+  1954                              <4>  %%endstr:
+  1955 00000A7A B801000000          <4>  mov rax, SYS_WRITE
+  1956 00000A7F BF01000000          <4>  mov rdi, %1
+  1957 00000A84 48BE-               <4>  mov rsi, %%str
+  1958 00000A86 [730A000000000000]  <4>
+  1959 00000A8E BA07000000          <4>  mov rdx, %%endstr-%%str
+  1960 00000A93 0F05                <4>  syscall
+  1961 00000A95 E96E010000          <3>  jmp %%Done
+  1962                              <3>  %$Next:
+  1963                              <3>  %pop
+  1964                              <3>  %push enum_item
+  1965                              <3>  %assign cnt cnt-1
+  1966 00000A9A 4983FC07            <3>  cmp r12, cnt
+  1967 00000A9E 7527                <3>  jne %$Next
+  1968                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1969 00000AA0 EB05                <4>  jmp %%endstr
+  1970 00000AA2 484153480A          <4>  %%str: db %2
+  1971                              <4>  %%endstr:
+  1972 00000AA7 B801000000          <4>  mov rax, SYS_WRITE
+  1973 00000AAC BF01000000          <4>  mov rdi, %1
+  1974 00000AB1 48BE-               <4>  mov rsi, %%str
+  1975 00000AB3 [A20A000000000000]  <4>
+  1976 00000ABB BA05000000          <4>  mov rdx, %%endstr-%%str
+  1977 00000AC0 0F05                <4>  syscall
+  1978 00000AC2 E941010000          <3>  jmp %%Done
+  1979                              <3>  %$Next:
+  1980                              <3>  %pop
+  1981                              <3>  %push enum_item
+  1982                              <3>  %assign cnt cnt-1
+  1983 00000AC7 4983FC06            <3>  cmp r12, cnt
+  1984 00000ACB 7526                <3>  jne %$Next
+  1985                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  1986 00000ACD EB04                <4>  jmp %%endstr
+  1987 00000ACF 4E4F540A            <4>  %%str: db %2
+  1988                              <4>  %%endstr:
+  1989 00000AD3 B801000000          <4>  mov rax, SYS_WRITE
+  1990 00000AD8 BF01000000          <4>  mov rdi, %1
+  1991 00000ADD 48BE-               <4>  mov rsi, %%str
+  1992 00000ADF [CF0A000000000000]  <4>
+  1993 00000AE7 BA04000000          <4>  mov rdx, %%endstr-%%str
+  1994 00000AEC 0F05                <4>  syscall
+  1995 00000AEE E915010000          <3>  jmp %%Done
+  1996                              <3>  %$Next:
+  1997                              <3>  %pop
+  1998                              <3>  %push enum_item
+  1999                              <3>  %assign cnt cnt-1
+  2000 00000AF3 4983FC05            <3>  cmp r12, cnt
+  2001 00000AF7 752B                <3>  jne %$Next
+  2002                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2003 00000AF9 EB09                <4>  jmp %%endstr
+  2004 00000AFB 52425241434B45540A  <4>  %%str: db %2
+  2005                              <4>  %%endstr:
+  2006 00000B04 B801000000          <4>  mov rax, SYS_WRITE
+  2007 00000B09 BF01000000          <4>  mov rdi, %1
+  2008 00000B0E 48BE-               <4>  mov rsi, %%str
+  2009 00000B10 [FB0A000000000000]  <4>
+  2010 00000B18 BA09000000          <4>  mov rdx, %%endstr-%%str
+  2011 00000B1D 0F05                <4>  syscall
+  2012 00000B1F E9E4000000          <3>  jmp %%Done
+  2013                              <3>  %$Next:
+  2014                              <3>  %pop
+  2015                              <3>  %push enum_item
+  2016                              <3>  %assign cnt cnt-1
+  2017 00000B24 4983FC04            <3>  cmp r12, cnt
+  2018 00000B28 752B                <3>  jne %$Next
+  2019                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2020 00000B2A EB09                <4>  jmp %%endstr
+  2021 00000B2C 4C425241434B45540A  <4>  %%str: db %2
+  2022                              <4>  %%endstr:
+  2023 00000B35 B801000000          <4>  mov rax, SYS_WRITE
+  2024 00000B3A BF01000000          <4>  mov rdi, %1
+  2025 00000B3F 48BE-               <4>  mov rsi, %%str
+  2026 00000B41 [2C0B000000000000]  <4>
+  2027 00000B49 BA09000000          <4>  mov rdx, %%endstr-%%str
+  2028 00000B4E 0F05                <4>  syscall
+  2029 00000B50 E9B3000000          <3>  jmp %%Done
+  2030                              <3>  %$Next:
+  2031                              <3>  %pop
+  2032                              <3>  %push enum_item
+  2033                              <3>  %assign cnt cnt-1
+  2034 00000B55 4983FC03            <3>  cmp r12, cnt
+  2035 00000B59 7529                <3>  jne %$Next
+  2036                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2037 00000B5B EB07                <4>  jmp %%endstr
+  2038 00000B5D 52504152454E0A      <4>  %%str: db %2
+  2039                              <4>  %%endstr:
+  2040 00000B64 B801000000          <4>  mov rax, SYS_WRITE
+  2041 00000B69 BF01000000          <4>  mov rdi, %1
+  2042 00000B6E 48BE-               <4>  mov rsi, %%str
+  2043 00000B70 [5D0B000000000000]  <4>
+  2044 00000B78 BA07000000          <4>  mov rdx, %%endstr-%%str
+  2045 00000B7D 0F05                <4>  syscall
+  2046 00000B7F E984000000          <3>  jmp %%Done
+  2047                              <3>  %$Next:
+  2048                              <3>  %pop
+  2049                              <3>  %push enum_item
+  2050                              <3>  %assign cnt cnt-1
+  2051 00000B84 4983FC02            <3>  cmp r12, cnt
+  2052 00000B88 7526                <3>  jne %$Next
+  2053                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2054 00000B8A EB07                <4>  jmp %%endstr
+  2055 00000B8C 4C504152454E0A      <4>  %%str: db %2
+  2056                              <4>  %%endstr:
+  2057 00000B93 B801000000          <4>  mov rax, SYS_WRITE
+  2058 00000B98 BF01000000          <4>  mov rdi, %1
+  2059 00000B9D 48BE-               <4>  mov rsi, %%str
+  2060 00000B9F [8C0B000000000000]  <4>
+  2061 00000BA7 BA07000000          <4>  mov rdx, %%endstr-%%str
+  2062 00000BAC 0F05                <4>  syscall
+  2063 00000BAE EB58                <3>  jmp %%Done
+  2064                              <3>  %$Next:
+  2065                              <3>  %pop
+  2066                              <3>  %push enum_item
+  2067                              <3>  %assign cnt cnt-1
+  2068 00000BB0 4983FC01            <3>  cmp r12, cnt
+  2069 00000BB4 7526                <3>  jne %$Next
+  2070                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2071 00000BB6 EB07                <4>  jmp %%endstr
+  2072 00000BB8 5242524143450A      <4>  %%str: db %2
+  2073                              <4>  %%endstr:
+  2074 00000BBF B801000000          <4>  mov rax, SYS_WRITE
+  2075 00000BC4 BF01000000          <4>  mov rdi, %1
+  2076 00000BC9 48BE-               <4>  mov rsi, %%str
+  2077 00000BCB [B80B000000000000]  <4>
+  2078 00000BD3 BA07000000          <4>  mov rdx, %%endstr-%%str
+  2079 00000BD8 0F05                <4>  syscall
+  2080 00000BDA EB2C                <3>  jmp %%Done
+  2081                              <3>  %$Next:
+  2082                              <3>  %pop
+  2083                              <3>  %push enum_item
+  2084                              <3>  %assign cnt cnt-1
+  2085 00000BDC 4983FC00            <3>  cmp r12, cnt
+  2086 00000BE0 7526                <3>  jne %$Next
+  2087                              <3>  WriteLit STDOUT, ENAME_cnt_NAME, NL
+  2088 00000BE2 EB07                <4>  jmp %%endstr
+  2089 00000BE4 4C42524143450A      <4>  %%str: db %2
+  2090                              <4>  %%endstr:
+  2091 00000BEB B801000000          <4>  mov rax, SYS_WRITE
+  2092 00000BF0 BF01000000          <4>  mov rdi, %1
+  2093 00000BF5 48BE-               <4>  mov rsi, %%str
+  2094 00000BF7 [E40B000000000000]  <4>
+  2095 00000BFF BA07000000          <4>  mov rdx, %%endstr-%%str
+  2096 00000C04 0F05                <4>  syscall
+  2097 00000C06 EB00                <3>  jmp %%Done
+  2098                              <3>  %$Next:
+  2099                              <3>  %pop
+  2100                              <2>  %%Done:
+  2101                              <2>  fnret
+  2102                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2103                              <4>  %rep %0
+  2104                              <4>  %rotate -1
+  2105                              <4>  pop %1
+  2106                              <4>  %endrep
+  2107                              <5>  %rotate -1
+  2108 00000C08 415F                <5>  pop %1
+  2109                              <5>  %rotate -1
+  2110 00000C0A 415E                <5>  pop %1
+  2111                              <5>  %rotate -1
+  2112 00000C0C 415D                <5>  pop %1
+  2113                              <5>  %rotate -1
+  2114 00000C0E 415C                <5>  pop %1
+  2115                              <5>  %rotate -1
+  2116 00000C10 5B                  <5>  pop %1
+  2117                              <5>  %rotate -1
+  2118 00000C11 5D                  <5>  pop %1
+  2119 00000C12 C3                  <3>  ret
+  2120                              <1> 
+  2121                              <1> 
+  2122                              <1> ;;; ***************
+  2123                              <1> ;;; Peek/Eat Chars
+  2124                              <1> 
+  2125                              <1>         section .data
+  2126 00100020 FEFFFFFFFFFFFFFF    <1> chr_cache:      dq      -2
+  2127                              <1> 
+  2128                              <1>         section .text
+  2129                              <1> PeekChr:
+  2130                              <1>         fn
+  2131                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+  2132                              <3>  %rep %0
+  2133                              <3>  push %1
+  2134                              <3>  %rotate 1
+  2135                              <3>  %endrep
+  2136 00000C13 55                  <4>  push %1
+  2137                              <4>  %rotate 1
+  2138 00000C14 53                  <4>  push %1
+  2139                              <4>  %rotate 1
+  2140 00000C15 4154                <4>  push %1
+  2141                              <4>  %rotate 1
+  2142 00000C17 4155                <4>  push %1
+  2143                              <4>  %rotate 1
+  2144 00000C19 4156                <4>  push %1
+  2145                              <4>  %rotate 1
+  2146 00000C1B 4157                <4>  push %1
+  2147                              <4>  %rotate 1
+  2148 00000C1D 4889E5              <2>  mov rbp, rsp
+  2149 00000C20 48833C25[20001000]- <1>         cmp QWORD [chr_cache], -2
+  2150 00000C28 FE                  <1>
+  2151 00000C29 7413                <1>         je __PeekChr_CacheMiss
+  2152                              <1> __PeekChr_CacheHit:
+  2153                              <1>         fnret [chr_cache]
+  2154 00000C2B 488B0425[20001000]  <2>  mov rax, %1
+  2155                              <2>  fnret
+  2156                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2157                              <4>  %rep %0
+  2158                              <4>  %rotate -1
+  2159                              <4>  pop %1
+  2160                              <4>  %endrep
+  2161                              <5>  %rotate -1
+  2162 00000C33 415F                <5>  pop %1
+  2163                              <5>  %rotate -1
+  2164 00000C35 415E                <5>  pop %1
+  2165                              <5>  %rotate -1
+  2166 00000C37 415D                <5>  pop %1
+  2167                              <5>  %rotate -1
+  2168 00000C39 415C                <5>  pop %1
+  2169                              <5>  %rotate -1
+  2170 00000C3B 5B                  <5>  pop %1
+  2171                              <5>  %rotate -1
+  2172 00000C3C 5D                  <5>  pop %1
+  2173 00000C3D C3                  <3>  ret
+  2174                              <1> __PeekChr_CacheMiss:
+  2175                              <1>         GetChr r12, STDIN
+  2176 00000C3E B800000000          <2>  mov rax, SYS_READ
+  2177 00000C43 BF00000000          <2>  mov rdi, %2
+  2178 00000C48 4889E6              <2>  mov rsi, rsp
+  2179 00000C4B 4883EE08            <2>  sub rsi, 8
+  2180 00000C4F 48C70600000000      <2>  mov QWORD [rsi], 0
+  2181 00000C56 BA01000000          <2>  mov rdx, 1
+  2182 00000C5B 0F05                <2>  syscall
+  2183 00000C5D 4883F800            <2>  cmp rax, 0
+  2184 00000C61 7407                <2>  je %%fail
+  2185                              <2> %%success:
+  2186 00000C63 4C8B6424F8          <2>  mov %1, [rsp-8]
+  2187 00000C68 EB09                <2>  jmp %%done
+  2188                              <2> %%fail:
+  2189 00000C6A 49C7C4FFFFFFFF      <2>  mov %1, -1
+  2190 00000C71 EB00                <2>  jmp %%done
+  2191                              <2> %%done:
+  2192 00000C73 90                  <2>  nop
+  2193 00000C74 4C892425[20001000]  <1>         mov [chr_cache], r12
+  2194                              <1>         fnret r12
+  2195 00000C7C 4C89E0              <2>  mov rax, %1
+  2196                              <2>  fnret
+  2197                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2198                              <4>  %rep %0
+  2199                              <4>  %rotate -1
+  2200                              <4>  pop %1
+  2201                              <4>  %endrep
+  2202                              <5>  %rotate -1
+  2203 00000C7F 415F                <5>  pop %1
+  2204                              <5>  %rotate -1
+  2205 00000C81 415E                <5>  pop %1
+  2206                              <5>  %rotate -1
+  2207 00000C83 415D                <5>  pop %1
+  2208                              <5>  %rotate -1
+  2209 00000C85 415C                <5>  pop %1
+  2210                              <5>  %rotate -1
+  2211 00000C87 5B                  <5>  pop %1
+  2212                              <5>  %rotate -1
+  2213 00000C88 5D                  <5>  pop %1
+  2214 00000C89 C3                  <3>  ret
+  2215                              <1> 
+  2216                              <1> 
+  2217                              <1> EatChr:
+  2218                              <1>         fn
+  2219                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+  2220                              <3>  %rep %0
+  2221                              <3>  push %1
+  2222                              <3>  %rotate 1
+  2223                              <3>  %endrep
+  2224 00000C8A 55                  <4>  push %1
+  2225                              <4>  %rotate 1
+  2226 00000C8B 53                  <4>  push %1
+  2227                              <4>  %rotate 1
+  2228 00000C8C 4154                <4>  push %1
+  2229                              <4>  %rotate 1
+  2230 00000C8E 4155                <4>  push %1
+  2231                              <4>  %rotate 1
+  2232 00000C90 4156                <4>  push %1
+  2233                              <4>  %rotate 1
+  2234 00000C92 4157                <4>  push %1
+  2235                              <4>  %rotate 1
+  2236 00000C94 4889E5              <2>  mov rbp, rsp
+  2237                              <1>         fcall PeekChr
+  2238 00000C97 E877FFFFFF          <2>  call %1
+  2239 00000C9C 4989C4              <1>         mov r12, rax
+  2240 00000C9F 48833C25[20001000]- <1>         cmp QWORD [chr_cache], -1
+  2241 00000CA7 FF                  <1>
+  2242 00000CA8 743E                <1>         je __EatChr_Done
+  2243                              <1>         GetChr r13, STDIN
+  2244 00000CAA B800000000          <2>  mov rax, SYS_READ
+  2245 00000CAF BF00000000          <2>  mov rdi, %2
+  2246 00000CB4 4889E6              <2>  mov rsi, rsp
+  2247 00000CB7 4883EE08            <2>  sub rsi, 8
+  2248 00000CBB 48C70600000000      <2>  mov QWORD [rsi], 0
+  2249 00000CC2 BA01000000          <2>  mov rdx, 1
+  2250 00000CC7 0F05                <2>  syscall
+  2251 00000CC9 4883F800            <2>  cmp rax, 0
+  2252 00000CCD 7407                <2>  je %%fail
+  2253                              <2> %%success:
+  2254 00000CCF 4C8B6C24F8          <2>  mov %1, [rsp-8]
+  2255 00000CD4 EB09                <2>  jmp %%done
+  2256                              <2> %%fail:
+  2257 00000CD6 49C7C5FFFFFFFF      <2>  mov %1, -1
+  2258 00000CDD EB00                <2>  jmp %%done
+  2259                              <2> %%done:
+  2260 00000CDF 90                  <2>  nop
+  2261 00000CE0 4C892C25[20001000]  <1>         mov [chr_cache], r13
+  2262                              <1> __EatChr_Done:
+  2263                              <1>         fnret r12
+  2264 00000CE8 4C89E0              <2>  mov rax, %1
+  2265                              <2>  fnret
+  2266                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2267                              <4>  %rep %0
+  2268                              <4>  %rotate -1
+  2269                              <4>  pop %1
+  2270                              <4>  %endrep
+  2271                              <5>  %rotate -1
+  2272 00000CEB 415F                <5>  pop %1
+  2273                              <5>  %rotate -1
+  2274 00000CED 415E                <5>  pop %1
+  2275                              <5>  %rotate -1
+  2276 00000CEF 415D                <5>  pop %1
+  2277                              <5>  %rotate -1
+  2278 00000CF1 415C                <5>  pop %1
+  2279                              <5>  %rotate -1
+  2280 00000CF3 5B                  <5>  pop %1
+  2281                              <5>  %rotate -1
+  2282 00000CF4 5D                  <5>  pop %1
+  2283 00000CF5 C3                  <3>  ret
+  2284                              <1> 
+  2285                              <1> ;;; **************
+  2286                              <1> ;;; Read in Tokens
+  2287                              <1> 
+  2288                              <1>         section .rodata
+  2289                              <1> ReadTok_Map:
+  2290 00000000 [2410000000000000]- <1>         times 10 dq __ReadTok_INVALID ;'\0'-'\t'
+  2291 00000000 <rept>              <1>
+  2292 00000050 [030D000000000000]  <1>         dq __ReadTok_IGNORE           ;LF
+  2293 00000058 [2410000000000000]- <1>         times 2 dq __ReadTok_INVALID  ;VT-FF
+  2294 00000058 <rept>              <1>
+  2295 00000068 [030D000000000000]  <1>         dq __ReadTok_IGNORE           ;CR
+  2296 00000070 [2410000000000000]- <1>         times 18 dq __ReadTok_INVALID ;SO-US
+  2297 00000070 <rept>              <1>
+  2298 00000100 [030D000000000000]  <1>         dq __ReadTok_IGNORE           ;' '
+  2299 00000108 [850D000000000000]  <1>         dq __ReadTok_NOT              ;'!'
+  2300 00000110 [510F000000000000]  <1>         dq __ReadTok_STRING           ;'"'
+  2301 00000118 [950D000000000000]  <1>         dq __ReadTok_HASH             ;'#'
+  2302 00000120 [2410000000000000]  <1>         dq __ReadTok_INVALID          ;'$'
+  2303 00000128 [A50D000000000000]  <1>         dq __ReadTok_MODULO           ;'%'
+  2304 00000130 [B50D000000000000]  <1>         dq __ReadTok_AND              ;'&'
+  2305 00000138 [2410000000000000]  <1>         dq __ReadTok_INVALID          ;'''  ; XXX: Char?
+  2306 00000140 [450D000000000000]  <1>         dq __ReadTok_LPAREN           ;'('
+  2307 00000148 [550D000000000000]  <1>         dq __ReadTok_RPAREN           ;')'
+  2308 00000150 [C50D000000000000]  <1>         dq __ReadTok_STAR             ;'*'
+  2309 00000158 [D50D000000000000]  <1>         dq __ReadTok_PLUS             ;'+'
+  2310 00000160 [050E000000000000]  <1>         dq __ReadTok_COMMA            ;','
+  2311 00000168 [E50D000000000000]  <1>         dq __ReadTok_DASH             ;'-'
+  2312 00000170 [F50D000000000000]  <1>         dq __ReadTok_DOT              ;'.'
+  2313 00000178 [150E000000000000]  <1>         dq __ReadTok_SLASH            ;'/'
+  2314 00000180 [0410000000000000]- <1>         times 10 dq __ReadTok_NUMBER  ;'0'-'9'
+  2315 00000180 <rept>              <1>
+  2316 000001D0 [250E000000000000]  <1>         dq __ReadTok_COLON            ;':'
+  2317 000001D8 [350E000000000000]  <1>         dq __ReadTok_SEMI             ;';'
+  2318 000001E0 [450E000000000000]  <1>         dq __ReadTok_LT               ;'<'
+  2319 000001E8 [550E000000000000]  <1>         dq __ReadTok_EQ               ;'='
+  2320 000001F0 [650E000000000000]  <1>         dq __ReadTok_GT               ;'>'
+  2321 000001F8 [750E000000000000]  <1>         dq __ReadTok_QMARK            ;'?'
+  2322 00000200 [850E000000000000]  <1>         dq __ReadTok_AT               ;'@'
+  2323 00000208 [C50E000000000000]- <1>         times 26 dq __ReadTok_IDENT   ;'A'-'Z'
+  2324 00000208 <rept>              <1>
+  2325 000002D8 [650D000000000000]  <1>         dq __ReadTok_LBRACKET         ;'['
+  2326 000002E0 [2410000000000000]  <1>         dq __ReadTok_INVALID          ;'\'
+  2327 000002E8 [750D000000000000]  <1>         dq __ReadTok_RBRACKET         ;']'
+  2328 000002F0 [950E000000000000]  <1>         dq __ReadTok_CARET            ;'^'
+  2329 000002F8 [C50E000000000000]  <1>         dq __ReadTok_IDENT            ;'_'
+  2330 00000300 [2410000000000000]  <1>         dq __ReadTok_INVALID          ;'`'
+  2331 00000308 [C50E000000000000]- <1>         times 26 dq __ReadTok_IDENT   ;'a'-'z'
+  2332 00000308 <rept>              <1>
+  2333 000003D8 [250D000000000000]  <1>         dq __ReadTok_LBRACE           ;'{'
+  2334 000003E0 [A50E000000000000]  <1>         dq __ReadTok_BAR              ;'|'
+  2335 000003E8 [350D000000000000]  <1>         dq __ReadTok_RBRACE           ;'}'
+  2336 000003F0 [B50E000000000000]  <1>         dq __ReadTok_TILDE            ;'~'
+  2337                              <1> ReadTok_Map_LEN:   equ     $ - ReadTok_Map
+  2338                              <1> 
+  2339                              <1> 
+  2340                              <1>         section .text
+  2341                              <1> ReadTok:
+  2342                              <1>         fn
+  2343                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+  2344                              <3>  %rep %0
+  2345                              <3>  push %1
+  2346                              <3>  %rotate 1
+  2347                              <3>  %endrep
+  2348 00000CF6 55                  <4>  push %1
+  2349                              <4>  %rotate 1
+  2350 00000CF7 53                  <4>  push %1
+  2351                              <4>  %rotate 1
+  2352 00000CF8 4154                <4>  push %1
+  2353                              <4>  %rotate 1
+  2354 00000CFA 4155                <4>  push %1
+  2355                              <4>  %rotate 1
+  2356 00000CFC 4156                <4>  push %1
+  2357                              <4>  %rotate 1
+  2358 00000CFE 4157                <4>  push %1
+  2359                              <4>  %rotate 1
+  2360 00000D00 4889E5              <2>  mov rbp, rsp
+  2361                              <1> __ReadTok_IGNORE: ; Jump back to here when should ignore
+  2362                              <1>         fcall EatChr
+  2363 00000D03 E882FFFFFF          <2>  call %1
+  2364                              <1> 
+  2365                              <1>         ;; Handle EOF seperately
+  2366 00000D08 4883F8FF            <1>         cmp rax, -1
+  2367 00000D0C 0F8402030000        <1>         je __ReadTok_EOF
+  2368                              <1> 
+  2369                              <1>         ;; Bounds Check
+  2370 00000D12 483DF8030000        <1>         cmp rax, ReadTok_Map_LEN ; XXX: Make sure that this is an unsigned comparison
+  2371 00000D18 0F8D06030000        <1>         jge __ReadTok_INVALID ; If chr >= ReadTok_Map_LEN, invalid
+  2372                              <1> 
+  2373 00000D1E FF24C5[00000000]    <1>         jmp [rax*8 + ReadTok_Map] ; Jump!
+  2374                              <1> 
+  2375                              <1> __ReadTok_LBRACE:
+  2376                              <1>         fnret TOKEN_LBRACE
+  2377 00000D25 B800000000          <2>  mov rax, %1
+  2378                              <2>  fnret
+  2379                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2380                              <4>  %rep %0
+  2381                              <4>  %rotate -1
+  2382                              <4>  pop %1
+  2383                              <4>  %endrep
+  2384                              <5>  %rotate -1
+  2385 00000D2A 415F                <5>  pop %1
+  2386                              <5>  %rotate -1
+  2387 00000D2C 415E                <5>  pop %1
+  2388                              <5>  %rotate -1
+  2389 00000D2E 415D                <5>  pop %1
+  2390                              <5>  %rotate -1
+  2391 00000D30 415C                <5>  pop %1
+  2392                              <5>  %rotate -1
+  2393 00000D32 5B                  <5>  pop %1
+  2394                              <5>  %rotate -1
+  2395 00000D33 5D                  <5>  pop %1
+  2396 00000D34 C3                  <3>  ret
+  2397                              <1> __ReadTok_RBRACE:
+  2398                              <1>         fnret TOKEN_RBRACE
+  2399 00000D35 B801000000          <2>  mov rax, %1
+  2400                              <2>  fnret
+  2401                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2402                              <4>  %rep %0
+  2403                              <4>  %rotate -1
+  2404                              <4>  pop %1
+  2405                              <4>  %endrep
+  2406                              <5>  %rotate -1
+  2407 00000D3A 415F                <5>  pop %1
+  2408                              <5>  %rotate -1
+  2409 00000D3C 415E                <5>  pop %1
+  2410                              <5>  %rotate -1
+  2411 00000D3E 415D                <5>  pop %1
+  2412                              <5>  %rotate -1
+  2413 00000D40 415C                <5>  pop %1
+  2414                              <5>  %rotate -1
+  2415 00000D42 5B                  <5>  pop %1
+  2416                              <5>  %rotate -1
+  2417 00000D43 5D                  <5>  pop %1
+  2418 00000D44 C3                  <3>  ret
+  2419                              <1> __ReadTok_LPAREN:
+  2420                              <1>         fnret TOKEN_LPAREN
+  2421 00000D45 B802000000          <2>  mov rax, %1
+  2422                              <2>  fnret
+  2423                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2424                              <4>  %rep %0
+  2425                              <4>  %rotate -1
+  2426                              <4>  pop %1
+  2427                              <4>  %endrep
+  2428                              <5>  %rotate -1
+  2429 00000D4A 415F                <5>  pop %1
+  2430                              <5>  %rotate -1
+  2431 00000D4C 415E                <5>  pop %1
+  2432                              <5>  %rotate -1
+  2433 00000D4E 415D                <5>  pop %1
+  2434                              <5>  %rotate -1
+  2435 00000D50 415C                <5>  pop %1
+  2436                              <5>  %rotate -1
+  2437 00000D52 5B                  <5>  pop %1
+  2438                              <5>  %rotate -1
+  2439 00000D53 5D                  <5>  pop %1
+  2440 00000D54 C3                  <3>  ret
+  2441                              <1> __ReadTok_RPAREN:
+  2442                              <1>         fnret TOKEN_RPAREN
+  2443 00000D55 B803000000          <2>  mov rax, %1
+  2444                              <2>  fnret
+  2445                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2446                              <4>  %rep %0
+  2447                              <4>  %rotate -1
+  2448                              <4>  pop %1
+  2449                              <4>  %endrep
+  2450                              <5>  %rotate -1
+  2451 00000D5A 415F                <5>  pop %1
+  2452                              <5>  %rotate -1
+  2453 00000D5C 415E                <5>  pop %1
+  2454                              <5>  %rotate -1
+  2455 00000D5E 415D                <5>  pop %1
+  2456                              <5>  %rotate -1
+  2457 00000D60 415C                <5>  pop %1
+  2458                              <5>  %rotate -1
+  2459 00000D62 5B                  <5>  pop %1
+  2460                              <5>  %rotate -1
+  2461 00000D63 5D                  <5>  pop %1
+  2462 00000D64 C3                  <3>  ret
+  2463                              <1> __ReadTok_LBRACKET:
+  2464                              <1>         fnret TOKEN_LBRACKET
+  2465 00000D65 B804000000          <2>  mov rax, %1
+  2466                              <2>  fnret
+  2467                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2468                              <4>  %rep %0
+  2469                              <4>  %rotate -1
+  2470                              <4>  pop %1
+  2471                              <4>  %endrep
+  2472                              <5>  %rotate -1
+  2473 00000D6A 415F                <5>  pop %1
+  2474                              <5>  %rotate -1
+  2475 00000D6C 415E                <5>  pop %1
+  2476                              <5>  %rotate -1
+  2477 00000D6E 415D                <5>  pop %1
+  2478                              <5>  %rotate -1
+  2479 00000D70 415C                <5>  pop %1
+  2480                              <5>  %rotate -1
+  2481 00000D72 5B                  <5>  pop %1
+  2482                              <5>  %rotate -1
+  2483 00000D73 5D                  <5>  pop %1
+  2484 00000D74 C3                  <3>  ret
+  2485                              <1> __ReadTok_RBRACKET:
+  2486                              <1>         fnret TOKEN_RBRACKET
+  2487 00000D75 B805000000          <2>  mov rax, %1
+  2488                              <2>  fnret
+  2489                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2490                              <4>  %rep %0
+  2491                              <4>  %rotate -1
+  2492                              <4>  pop %1
+  2493                              <4>  %endrep
+  2494                              <5>  %rotate -1
+  2495 00000D7A 415F                <5>  pop %1
+  2496                              <5>  %rotate -1
+  2497 00000D7C 415E                <5>  pop %1
+  2498                              <5>  %rotate -1
+  2499 00000D7E 415D                <5>  pop %1
+  2500                              <5>  %rotate -1
+  2501 00000D80 415C                <5>  pop %1
+  2502                              <5>  %rotate -1
+  2503 00000D82 5B                  <5>  pop %1
+  2504                              <5>  %rotate -1
+  2505 00000D83 5D                  <5>  pop %1
+  2506 00000D84 C3                  <3>  ret
+  2507                              <1> 
+  2508                              <1>         ;; Symbols
+  2509                              <1> __ReadTok_NOT:
+  2510                              <1>         fnret TOKEN_NOT
+  2511 00000D85 B806000000          <2>  mov rax, %1
+  2512                              <2>  fnret
+  2513                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2514                              <4>  %rep %0
+  2515                              <4>  %rotate -1
+  2516                              <4>  pop %1
+  2517                              <4>  %endrep
+  2518                              <5>  %rotate -1
+  2519 00000D8A 415F                <5>  pop %1
+  2520                              <5>  %rotate -1
+  2521 00000D8C 415E                <5>  pop %1
+  2522                              <5>  %rotate -1
+  2523 00000D8E 415D                <5>  pop %1
+  2524                              <5>  %rotate -1
+  2525 00000D90 415C                <5>  pop %1
+  2526                              <5>  %rotate -1
+  2527 00000D92 5B                  <5>  pop %1
+  2528                              <5>  %rotate -1
+  2529 00000D93 5D                  <5>  pop %1
+  2530 00000D94 C3                  <3>  ret
+  2531                              <1> __ReadTok_HASH:
+  2532                              <1>         fnret TOKEN_HASH
+  2533 00000D95 B807000000          <2>  mov rax, %1
+  2534                              <2>  fnret
+  2535                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2536                              <4>  %rep %0
+  2537                              <4>  %rotate -1
+  2538                              <4>  pop %1
+  2539                              <4>  %endrep
+  2540                              <5>  %rotate -1
+  2541 00000D9A 415F                <5>  pop %1
+  2542                              <5>  %rotate -1
+  2543 00000D9C 415E                <5>  pop %1
+  2544                              <5>  %rotate -1
+  2545 00000D9E 415D                <5>  pop %1
+  2546                              <5>  %rotate -1
+  2547 00000DA0 415C                <5>  pop %1
+  2548                              <5>  %rotate -1
+  2549 00000DA2 5B                  <5>  pop %1
+  2550                              <5>  %rotate -1
+  2551 00000DA3 5D                  <5>  pop %1
+  2552 00000DA4 C3                  <3>  ret
+  2553                              <1> __ReadTok_MODULO:
+  2554                              <1>         fnret TOKEN_MODULO
+  2555 00000DA5 B808000000          <2>  mov rax, %1
+  2556                              <2>  fnret
+  2557                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2558                              <4>  %rep %0
+  2559                              <4>  %rotate -1
+  2560                              <4>  pop %1
+  2561                              <4>  %endrep
+  2562                              <5>  %rotate -1
+  2563 00000DAA 415F                <5>  pop %1
+  2564                              <5>  %rotate -1
+  2565 00000DAC 415E                <5>  pop %1
+  2566                              <5>  %rotate -1
+  2567 00000DAE 415D                <5>  pop %1
+  2568                              <5>  %rotate -1
+  2569 00000DB0 415C                <5>  pop %1
+  2570                              <5>  %rotate -1
+  2571 00000DB2 5B                  <5>  pop %1
+  2572                              <5>  %rotate -1
+  2573 00000DB3 5D                  <5>  pop %1
+  2574 00000DB4 C3                  <3>  ret
+  2575                              <1> __ReadTok_AND:
+  2576                              <1>         fnret TOKEN_AND
+  2577 00000DB5 B809000000          <2>  mov rax, %1
+  2578                              <2>  fnret
+  2579                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2580                              <4>  %rep %0
+  2581                              <4>  %rotate -1
+  2582                              <4>  pop %1
+  2583                              <4>  %endrep
+  2584                              <5>  %rotate -1
+  2585 00000DBA 415F                <5>  pop %1
+  2586                              <5>  %rotate -1
+  2587 00000DBC 415E                <5>  pop %1
+  2588                              <5>  %rotate -1
+  2589 00000DBE 415D                <5>  pop %1
+  2590                              <5>  %rotate -1
+  2591 00000DC0 415C                <5>  pop %1
+  2592                              <5>  %rotate -1
+  2593 00000DC2 5B                  <5>  pop %1
+  2594                              <5>  %rotate -1
+  2595 00000DC3 5D                  <5>  pop %1
+  2596 00000DC4 C3                  <3>  ret
+  2597                              <1> __ReadTok_STAR:
+  2598                              <1>         fnret TOKEN_STAR
+  2599 00000DC5 B80A000000          <2>  mov rax, %1
+  2600                              <2>  fnret
+  2601                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2602                              <4>  %rep %0
+  2603                              <4>  %rotate -1
+  2604                              <4>  pop %1
+  2605                              <4>  %endrep
+  2606                              <5>  %rotate -1
+  2607 00000DCA 415F                <5>  pop %1
+  2608                              <5>  %rotate -1
+  2609 00000DCC 415E                <5>  pop %1
+  2610                              <5>  %rotate -1
+  2611 00000DCE 415D                <5>  pop %1
+  2612                              <5>  %rotate -1
+  2613 00000DD0 415C                <5>  pop %1
+  2614                              <5>  %rotate -1
+  2615 00000DD2 5B                  <5>  pop %1
+  2616                              <5>  %rotate -1
+  2617 00000DD3 5D                  <5>  pop %1
+  2618 00000DD4 C3                  <3>  ret
+  2619                              <1> __ReadTok_PLUS:
+  2620                              <1>         fnret TOKEN_PLUS
+  2621 00000DD5 B80B000000          <2>  mov rax, %1
+  2622                              <2>  fnret
+  2623                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2624                              <4>  %rep %0
+  2625                              <4>  %rotate -1
+  2626                              <4>  pop %1
+  2627                              <4>  %endrep
+  2628                              <5>  %rotate -1
+  2629 00000DDA 415F                <5>  pop %1
+  2630                              <5>  %rotate -1
+  2631 00000DDC 415E                <5>  pop %1
+  2632                              <5>  %rotate -1
+  2633 00000DDE 415D                <5>  pop %1
+  2634                              <5>  %rotate -1
+  2635 00000DE0 415C                <5>  pop %1
+  2636                              <5>  %rotate -1
+  2637 00000DE2 5B                  <5>  pop %1
+  2638                              <5>  %rotate -1
+  2639 00000DE3 5D                  <5>  pop %1
+  2640 00000DE4 C3                  <3>  ret
+  2641                              <1> __ReadTok_DASH:
+  2642                              <1>         fnret TOKEN_DASH
+  2643 00000DE5 B80C000000          <2>  mov rax, %1
+  2644                              <2>  fnret
+  2645                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2646                              <4>  %rep %0
+  2647                              <4>  %rotate -1
+  2648                              <4>  pop %1
+  2649                              <4>  %endrep
+  2650                              <5>  %rotate -1
+  2651 00000DEA 415F                <5>  pop %1
+  2652                              <5>  %rotate -1
+  2653 00000DEC 415E                <5>  pop %1
+  2654                              <5>  %rotate -1
+  2655 00000DEE 415D                <5>  pop %1
+  2656                              <5>  %rotate -1
+  2657 00000DF0 415C                <5>  pop %1
+  2658                              <5>  %rotate -1
+  2659 00000DF2 5B                  <5>  pop %1
+  2660                              <5>  %rotate -1
+  2661 00000DF3 5D                  <5>  pop %1
+  2662 00000DF4 C3                  <3>  ret
+  2663                              <1> __ReadTok_DOT:
+  2664                              <1>         fnret TOKEN_DOT
+  2665 00000DF5 B80D000000          <2>  mov rax, %1
+  2666                              <2>  fnret
+  2667                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2668                              <4>  %rep %0
+  2669                              <4>  %rotate -1
+  2670                              <4>  pop %1
+  2671                              <4>  %endrep
+  2672                              <5>  %rotate -1
+  2673 00000DFA 415F                <5>  pop %1
+  2674                              <5>  %rotate -1
+  2675 00000DFC 415E                <5>  pop %1
+  2676                              <5>  %rotate -1
+  2677 00000DFE 415D                <5>  pop %1
+  2678                              <5>  %rotate -1
+  2679 00000E00 415C                <5>  pop %1
+  2680                              <5>  %rotate -1
+  2681 00000E02 5B                  <5>  pop %1
+  2682                              <5>  %rotate -1
+  2683 00000E03 5D                  <5>  pop %1
+  2684 00000E04 C3                  <3>  ret
+  2685                              <1> __ReadTok_COMMA:
+  2686                              <1>         fnret TOKEN_COMMA
+  2687 00000E05 B80E000000          <2>  mov rax, %1
+  2688                              <2>  fnret
+  2689                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2690                              <4>  %rep %0
+  2691                              <4>  %rotate -1
+  2692                              <4>  pop %1
+  2693                              <4>  %endrep
+  2694                              <5>  %rotate -1
+  2695 00000E0A 415F                <5>  pop %1
+  2696                              <5>  %rotate -1
+  2697 00000E0C 415E                <5>  pop %1
+  2698                              <5>  %rotate -1
+  2699 00000E0E 415D                <5>  pop %1
+  2700                              <5>  %rotate -1
+  2701 00000E10 415C                <5>  pop %1
+  2702                              <5>  %rotate -1
+  2703 00000E12 5B                  <5>  pop %1
+  2704                              <5>  %rotate -1
+  2705 00000E13 5D                  <5>  pop %1
+  2706 00000E14 C3                  <3>  ret
+  2707                              <1> __ReadTok_SLASH:
+  2708                              <1>         fnret TOKEN_SLASH
+  2709 00000E15 B80F000000          <2>  mov rax, %1
+  2710                              <2>  fnret
+  2711                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2712                              <4>  %rep %0
+  2713                              <4>  %rotate -1
+  2714                              <4>  pop %1
+  2715                              <4>  %endrep
+  2716                              <5>  %rotate -1
+  2717 00000E1A 415F                <5>  pop %1
+  2718                              <5>  %rotate -1
+  2719 00000E1C 415E                <5>  pop %1
+  2720                              <5>  %rotate -1
+  2721 00000E1E 415D                <5>  pop %1
+  2722                              <5>  %rotate -1
+  2723 00000E20 415C                <5>  pop %1
+  2724                              <5>  %rotate -1
+  2725 00000E22 5B                  <5>  pop %1
+  2726                              <5>  %rotate -1
+  2727 00000E23 5D                  <5>  pop %1
+  2728 00000E24 C3                  <3>  ret
+  2729                              <1> __ReadTok_COLON:
+  2730                              <1>         fnret TOKEN_COLON
+  2731 00000E25 B810000000          <2>  mov rax, %1
+  2732                              <2>  fnret
+  2733                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2734                              <4>  %rep %0
+  2735                              <4>  %rotate -1
+  2736                              <4>  pop %1
+  2737                              <4>  %endrep
+  2738                              <5>  %rotate -1
+  2739 00000E2A 415F                <5>  pop %1
+  2740                              <5>  %rotate -1
+  2741 00000E2C 415E                <5>  pop %1
+  2742                              <5>  %rotate -1
+  2743 00000E2E 415D                <5>  pop %1
+  2744                              <5>  %rotate -1
+  2745 00000E30 415C                <5>  pop %1
+  2746                              <5>  %rotate -1
+  2747 00000E32 5B                  <5>  pop %1
+  2748                              <5>  %rotate -1
+  2749 00000E33 5D                  <5>  pop %1
+  2750 00000E34 C3                  <3>  ret
+  2751                              <1> __ReadTok_SEMI:
+  2752                              <1>         fnret TOKEN_SEMI
+  2753 00000E35 B811000000          <2>  mov rax, %1
+  2754                              <2>  fnret
+  2755                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2756                              <4>  %rep %0
+  2757                              <4>  %rotate -1
+  2758                              <4>  pop %1
+  2759                              <4>  %endrep
+  2760                              <5>  %rotate -1
+  2761 00000E3A 415F                <5>  pop %1
+  2762                              <5>  %rotate -1
+  2763 00000E3C 415E                <5>  pop %1
+  2764                              <5>  %rotate -1
+  2765 00000E3E 415D                <5>  pop %1
+  2766                              <5>  %rotate -1
+  2767 00000E40 415C                <5>  pop %1
+  2768                              <5>  %rotate -1
+  2769 00000E42 5B                  <5>  pop %1
+  2770                              <5>  %rotate -1
+  2771 00000E43 5D                  <5>  pop %1
+  2772 00000E44 C3                  <3>  ret
+  2773                              <1> __ReadTok_LT:
+  2774                              <1>         fnret TOKEN_LT
+  2775 00000E45 B812000000          <2>  mov rax, %1
+  2776                              <2>  fnret
+  2777                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2778                              <4>  %rep %0
+  2779                              <4>  %rotate -1
+  2780                              <4>  pop %1
+  2781                              <4>  %endrep
+  2782                              <5>  %rotate -1
+  2783 00000E4A 415F                <5>  pop %1
+  2784                              <5>  %rotate -1
+  2785 00000E4C 415E                <5>  pop %1
+  2786                              <5>  %rotate -1
+  2787 00000E4E 415D                <5>  pop %1
+  2788                              <5>  %rotate -1
+  2789 00000E50 415C                <5>  pop %1
+  2790                              <5>  %rotate -1
+  2791 00000E52 5B                  <5>  pop %1
+  2792                              <5>  %rotate -1
+  2793 00000E53 5D                  <5>  pop %1
+  2794 00000E54 C3                  <3>  ret
+  2795                              <1> __ReadTok_EQ:
+  2796                              <1>         fnret TOKEN_EQ
+  2797 00000E55 B813000000          <2>  mov rax, %1
+  2798                              <2>  fnret
+  2799                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2800                              <4>  %rep %0
+  2801                              <4>  %rotate -1
+  2802                              <4>  pop %1
+  2803                              <4>  %endrep
+  2804                              <5>  %rotate -1
+  2805 00000E5A 415F                <5>  pop %1
+  2806                              <5>  %rotate -1
+  2807 00000E5C 415E                <5>  pop %1
+  2808                              <5>  %rotate -1
+  2809 00000E5E 415D                <5>  pop %1
+  2810                              <5>  %rotate -1
+  2811 00000E60 415C                <5>  pop %1
+  2812                              <5>  %rotate -1
+  2813 00000E62 5B                  <5>  pop %1
+  2814                              <5>  %rotate -1
+  2815 00000E63 5D                  <5>  pop %1
+  2816 00000E64 C3                  <3>  ret
+  2817                              <1> __ReadTok_GT:
+  2818                              <1>         fnret TOKEN_GT
+  2819 00000E65 B814000000          <2>  mov rax, %1
+  2820                              <2>  fnret
+  2821                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2822                              <4>  %rep %0
+  2823                              <4>  %rotate -1
+  2824                              <4>  pop %1
+  2825                              <4>  %endrep
+  2826                              <5>  %rotate -1
+  2827 00000E6A 415F                <5>  pop %1
+  2828                              <5>  %rotate -1
+  2829 00000E6C 415E                <5>  pop %1
+  2830                              <5>  %rotate -1
+  2831 00000E6E 415D                <5>  pop %1
+  2832                              <5>  %rotate -1
+  2833 00000E70 415C                <5>  pop %1
+  2834                              <5>  %rotate -1
+  2835 00000E72 5B                  <5>  pop %1
+  2836                              <5>  %rotate -1
+  2837 00000E73 5D                  <5>  pop %1
+  2838 00000E74 C3                  <3>  ret
+  2839                              <1> __ReadTok_QMARK:
+  2840                              <1>         fnret TOKEN_QMARK
+  2841 00000E75 B815000000          <2>  mov rax, %1
+  2842                              <2>  fnret
+  2843                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2844                              <4>  %rep %0
+  2845                              <4>  %rotate -1
+  2846                              <4>  pop %1
+  2847                              <4>  %endrep
+  2848                              <5>  %rotate -1
+  2849 00000E7A 415F                <5>  pop %1
+  2850                              <5>  %rotate -1
+  2851 00000E7C 415E                <5>  pop %1
+  2852                              <5>  %rotate -1
+  2853 00000E7E 415D                <5>  pop %1
+  2854                              <5>  %rotate -1
+  2855 00000E80 415C                <5>  pop %1
+  2856                              <5>  %rotate -1
+  2857 00000E82 5B                  <5>  pop %1
+  2858                              <5>  %rotate -1
+  2859 00000E83 5D                  <5>  pop %1
+  2860 00000E84 C3                  <3>  ret
+  2861                              <1> __ReadTok_AT:
+  2862                              <1>         fnret TOKEN_AT
+  2863 00000E85 B816000000          <2>  mov rax, %1
+  2864                              <2>  fnret
+  2865                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2866                              <4>  %rep %0
+  2867                              <4>  %rotate -1
+  2868                              <4>  pop %1
+  2869                              <4>  %endrep
+  2870                              <5>  %rotate -1
+  2871 00000E8A 415F                <5>  pop %1
+  2872                              <5>  %rotate -1
+  2873 00000E8C 415E                <5>  pop %1
+  2874                              <5>  %rotate -1
+  2875 00000E8E 415D                <5>  pop %1
+  2876                              <5>  %rotate -1
+  2877 00000E90 415C                <5>  pop %1
+  2878                              <5>  %rotate -1
+  2879 00000E92 5B                  <5>  pop %1
+  2880                              <5>  %rotate -1
+  2881 00000E93 5D                  <5>  pop %1
+  2882 00000E94 C3                  <3>  ret
+  2883                              <1> __ReadTok_CARET:
+  2884                              <1>         fnret TOKEN_CARET
+  2885 00000E95 B817000000          <2>  mov rax, %1
+  2886                              <2>  fnret
+  2887                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2888                              <4>  %rep %0
+  2889                              <4>  %rotate -1
+  2890                              <4>  pop %1
+  2891                              <4>  %endrep
+  2892                              <5>  %rotate -1
+  2893 00000E9A 415F                <5>  pop %1
+  2894                              <5>  %rotate -1
+  2895 00000E9C 415E                <5>  pop %1
+  2896                              <5>  %rotate -1
+  2897 00000E9E 415D                <5>  pop %1
+  2898                              <5>  %rotate -1
+  2899 00000EA0 415C                <5>  pop %1
+  2900                              <5>  %rotate -1
+  2901 00000EA2 5B                  <5>  pop %1
+  2902                              <5>  %rotate -1
+  2903 00000EA3 5D                  <5>  pop %1
+  2904 00000EA4 C3                  <3>  ret
+  2905                              <1> __ReadTok_BAR:
+  2906                              <1>         fnret TOKEN_BAR
+  2907 00000EA5 B818000000          <2>  mov rax, %1
+  2908                              <2>  fnret
+  2909                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2910                              <4>  %rep %0
+  2911                              <4>  %rotate -1
+  2912                              <4>  pop %1
+  2913                              <4>  %endrep
+  2914                              <5>  %rotate -1
+  2915 00000EAA 415F                <5>  pop %1
+  2916                              <5>  %rotate -1
+  2917 00000EAC 415E                <5>  pop %1
+  2918                              <5>  %rotate -1
+  2919 00000EAE 415D                <5>  pop %1
+  2920                              <5>  %rotate -1
+  2921 00000EB0 415C                <5>  pop %1
+  2922                              <5>  %rotate -1
+  2923 00000EB2 5B                  <5>  pop %1
+  2924                              <5>  %rotate -1
+  2925 00000EB3 5D                  <5>  pop %1
+  2926 00000EB4 C3                  <3>  ret
+  2927                              <1> __ReadTok_TILDE:
+  2928                              <1>         fnret TOKEN_TILDE
+  2929 00000EB5 B819000000          <2>  mov rax, %1
+  2930                              <2>  fnret
+  2931                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  2932                              <4>  %rep %0
+  2933                              <4>  %rotate -1
+  2934                              <4>  pop %1
+  2935                              <4>  %endrep
+  2936                              <5>  %rotate -1
+  2937 00000EBA 415F                <5>  pop %1
+  2938                              <5>  %rotate -1
+  2939 00000EBC 415E                <5>  pop %1
+  2940                              <5>  %rotate -1
+  2941 00000EBE 415D                <5>  pop %1
+  2942                              <5>  %rotate -1
+  2943 00000EC0 415C                <5>  pop %1
+  2944                              <5>  %rotate -1
+  2945 00000EC2 5B                  <5>  pop %1
+  2946                              <5>  %rotate -1
+  2947 00000EC3 5D                  <5>  pop %1
+  2948 00000EC4 C3                  <3>  ret
+  2949                              <1> 
+  2950                              <1>         ;; Special, Tokens (have data)
+  2951                              <1> __ReadTok_IDENT:
+  2952                              <1>         fcall StringBuilder_Addc, rax
+  2953 00000EC5 4889C7              <2>  mov rdi, %2
+  2954 00000EC8 E861F5FFFF          <2>  call %1
+  2955                              <1> 
+  2956                              <1> __ReadTok_IDENT_Loop:
+  2957                              <1>         fcall PeekChr
+  2958 00000ECD E841FDFFFF          <2>  call %1
+  2959 00000ED2 4883F830            <1>         cmp rax, 48             ; '0'
+  2960 00000ED6 7C2F                <1>         jl __ReadTok_IDENT_Done
+  2961 00000ED8 4883F839            <1>         cmp rax, 57             ; '9'
+  2962 00000EDC 7E1A                <1>         jle __ReadTok_IDENT_Read
+  2963                              <1> 
+  2964 00000EDE 4883F841            <1>         cmp rax, 65             ; 'A'
+  2965 00000EE2 7C23                <1>         jl __ReadTok_IDENT_Done
+  2966 00000EE4 4883F85A            <1>         cmp rax, 90             ; 'Z'
+  2967 00000EE8 7E0E                <1>         jle __ReadTok_IDENT_Read
+  2968                              <1> 
+  2969 00000EEA 4883F861            <1>         cmp rax, 97             ; 'a'
+  2970 00000EEE 7C17                <1>         jl __ReadTok_IDENT_Done
+  2971 00000EF0 4883F87B            <1>         cmp rax, 123            ; 'z'
+  2972 00000EF4 7E02                <1>         jle __ReadTok_IDENT_Read
+  2973 00000EF6 EB0F                <1>         jmp __ReadTok_IDENT_Done
+  2974                              <1> 
+  2975                              <1> __ReadTok_IDENT_Read:
+  2976                              <1>         fcall StringBuilder_Addc, rax
+  2977 00000EF8 4889C7              <2>  mov rdi, %2
+  2978 00000EFB E82EF5FFFF          <2>  call %1
+  2979                              <1>         fcall EatChr
+  2980 00000F00 E885FDFFFF          <2>  call %1
+  2981 00000F05 EBC6                <1>         jmp __ReadTok_IDENT_Loop
+  2982                              <1> 
+  2983                              <1> __ReadTok_IDENT_Done:
+  2984                              <1>         fcall StringBuilder_Done
+  2985 00000F07 E80AF6FFFF          <2>  call %1
+  2986                              <1> 
+  2987 00000F0C 4989C7              <1>         mov r15, rax
+  2988                              <1>         ;; XXX: Save this value somewhere
+  2989                              <1>         fcall Write64, r15
+  2990 00000F0F 4C89FF              <2>  mov rdi, %2
+  2991 00000F12 E8FBF0FFFF          <2>  call %1
+  2992                              <1>         fcall WriteStr, r15
+  2993 00000F17 4C89FF              <2>  mov rdi, %2
+  2994 00000F1A E865F3FFFF          <2>  call %1
+  2995                              <1>         WriteChr NL
+  2996                              <2>  WriteChr STDOUT, %1
+  2997 00000F1F B80A000000          <3>  mov rax, %2
+  2998 00000F24 48894424F8          <3>  mov [rsp-8], rax
+  2999 00000F29 B801000000          <3>  mov rax, SYS_WRITE
+  3000 00000F2E BF01000000          <3>  mov rdi, %1
+  3001                              <3> 
+  3002                              <3> 
+  3003 00000F33 4889E6              <3>  mov rsi, rsp
+  3004 00000F36 4883EE08            <3>  sub rsi, 8
+  3005 00000F3A BA01000000          <3>  mov rdx, 1
+  3006 00000F3F 0F05                <3>  syscall
+  3007                              <1> 
+  3008                              <1>         ;; XXX: FIXME
+  3009                              <1>         fnret TOKEN_IDENT
+  3010 00000F41 B81A000000          <2>  mov rax, %1
+  3011                              <2>  fnret
+  3012                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3013                              <4>  %rep %0
+  3014                              <4>  %rotate -1
+  3015                              <4>  pop %1
+  3016                              <4>  %endrep
+  3017                              <5>  %rotate -1
+  3018 00000F46 415F                <5>  pop %1
+  3019                              <5>  %rotate -1
+  3020 00000F48 415E                <5>  pop %1
+  3021                              <5>  %rotate -1
+  3022 00000F4A 415D                <5>  pop %1
+  3023                              <5>  %rotate -1
+  3024 00000F4C 415C                <5>  pop %1
+  3025                              <5>  %rotate -1
+  3026 00000F4E 5B                  <5>  pop %1
+  3027                              <5>  %rotate -1
+  3028 00000F4F 5D                  <5>  pop %1
+  3029 00000F50 C3                  <3>  ret
+  3030                              <1> __ReadTok_STRING:
+  3031 00000F51 4989E5              <1>         mov r13, rsp            ; End of String
+  3032                              <1> __ReadTok_STRING_ReadChr:
+  3033                              <1>         fcall EatChr
+  3034 00000F54 E831FDFFFF          <2>  call %1
+  3035 00000F59 4883F8FF            <1>         cmp rax, -1             ; EOF
+  3036 00000F5D 7423                <1>         je __ReadTok_STRING_Fail
+  3037 00000F5F 3C22                <1>         cmp al, 34             ; "
+  3038 00000F61 746C                <1>         je __ReadTok_STRING_End
+  3039 00000F63 3C5C                <1>         cmp al, 92              ;         je __ReadTok_STRING_ReadEscChr
+  3040                              <1> 
+  3041                              <1>         ;; Add the character to the string
+  3042 00000F65 4883EC01            <1>         sub rsp, 1
+  3043 00000F69 880424              <1>         mov BYTE [rsp], al
+  3044 00000F6C EBE6                <1>         jmp __ReadTok_STRING_ReadChr
+  3045                              <1> 
+  3046                              <1>         ;; A \ was read, read in chr after it
+  3047                              <1> __ReadTok_STRING_ReadEscChr:
+  3048                              <1>         fcall EatChr
+  3049 00000F6E E817FDFFFF          <2>  call %1
+  3050 00000F73 4883F8FF            <1>         cmp rax, -1             ; EOF
+  3051 00000F77 7409                <1>         je __ReadTok_STRING_Fail
+  3052 00000F79 4883EC01            <1>         sub rsp, 1
+  3053 00000F7D 880424              <1>         mov BYTE [rsp], al
+  3054 00000F80 EBD2                <1>         jmp __ReadTok_STRING_ReadChr
+  3055                              <1> 
+  3056                              <1> __ReadTok_STRING_Fail:
+  3057                              <1>         Panic 100, 'Unexpected EOF while parsing String', NL
+  3058                              <2>  WriteLit STDERR, %2
+  3059 00000F82 EB24                <3>  jmp %%endstr
+  3060 00000F84 556E65787065637465- <3>  %%str: db %2
+  3061 00000F8D 6420454F4620776869- <3>
+  3062 00000F96 6C652070617273696E- <3>
+  3063 00000F9F 6720537472696E670A  <3>
+  3064                              <3>  %%endstr:
+  3065 00000FA8 B801000000          <3>  mov rax, SYS_WRITE
+  3066 00000FAD BF02000000          <3>  mov rdi, %1
+  3067 00000FB2 48BE-               <3>  mov rsi, %%str
+  3068 00000FB4 [840F000000000000]  <3>
+  3069 00000FBC BA24000000          <3>  mov rdx, %%endstr-%%str
+  3070 00000FC1 0F05                <3>  syscall
+  3071                              <2> 
+  3072 00000FC3 B83C000000          <2>  mov rax, SYS_EXIT
+  3073 00000FC8 BF64000000          <2>  mov rdi, %1
+  3074 00000FCD 0F05                <2>  syscall
+  3075                              <1> 
+  3076                              <1> __ReadTok_STRING_End:
+  3077                              <1>         ;; TODO(michael): Reverse the string
+  3078 00000FCF 4929E5              <1>         sub r13, rsp
+  3079                              <1>         fcall Intern, rsp, r13  ; Intern the string
+  3080 00000FD2 4889E7              <2>  mov rdi, %2
+  3081 00000FD5 4C89EE              <2>  mov rsi, %3
+  3082 00000FD8 E87EF5FFFF          <2>  call %1
+  3083 00000FDD 4989C6              <1>         mov r14, rax
+  3084                              <1>         fcall Write64, r14
+  3085 00000FE0 4C89F7              <2>  mov rdi, %2
+  3086 00000FE3 E82AF0FFFF          <2>  call %1
+  3087                              <1>         fcall Write64, [r14-8]
+  3088 00000FE8 498B7EF8            <2>  mov rdi, %2
+  3089 00000FEC E821F0FFFF          <2>  call %1
+  3090                              <1> 
+  3091                              <1>         ;; Free the stack space
+  3092 00000FF1 4C01EC              <1>         add rsp, r13
+  3093                              <1> 
+  3094                              <1>         fnret TOKEN_STRING
+  3095 00000FF4 B81B000000          <2>  mov rax, %1
+  3096                              <2>  fnret
+  3097                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3098                              <4>  %rep %0
+  3099                              <4>  %rotate -1
+  3100                              <4>  pop %1
+  3101                              <4>  %endrep
+  3102                              <5>  %rotate -1
+  3103 00000FF9 415F                <5>  pop %1
+  3104                              <5>  %rotate -1
+  3105 00000FFB 415E                <5>  pop %1
+  3106                              <5>  %rotate -1
+  3107 00000FFD 415D                <5>  pop %1
+  3108                              <5>  %rotate -1
+  3109 00000FFF 415C                <5>  pop %1
+  3110                              <5>  %rotate -1
+  3111 00001001 5B                  <5>  pop %1
+  3112                              <5>  %rotate -1
+  3113 00001002 5D                  <5>  pop %1
+  3114 00001003 C3                  <3>  ret
+  3115                              <1> __ReadTok_NUMBER:
+  3116                              <1>         fnret TOKEN_NUMBER
+  3117 00001004 B81C000000          <2>  mov rax, %1
+  3118                              <2>  fnret
+  3119                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3120                              <4>  %rep %0
+  3121                              <4>  %rotate -1
+  3122                              <4>  pop %1
+  3123                              <4>  %endrep
+  3124                              <5>  %rotate -1
+  3125 00001009 415F                <5>  pop %1
+  3126                              <5>  %rotate -1
+  3127 0000100B 415E                <5>  pop %1
+  3128                              <5>  %rotate -1
+  3129 0000100D 415D                <5>  pop %1
+  3130                              <5>  %rotate -1
+  3131 0000100F 415C                <5>  pop %1
+  3132                              <5>  %rotate -1
+  3133 00001011 5B                  <5>  pop %1
+  3134                              <5>  %rotate -1
+  3135 00001012 5D                  <5>  pop %1
+  3136 00001013 C3                  <3>  ret
+  3137                              <1> 
+  3138                              <1>         ;; Special Cases
+  3139                              <1> __ReadTok_EOF:
+  3140                              <1>         fnret TOKEN_EOF
+  3141 00001014 B81D000000          <2>  mov rax, %1
+  3142                              <2>  fnret
+  3143                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3144                              <4>  %rep %0
+  3145                              <4>  %rotate -1
+  3146                              <4>  pop %1
+  3147                              <4>  %endrep
+  3148                              <5>  %rotate -1
+  3149 00001019 415F                <5>  pop %1
+  3150                              <5>  %rotate -1
+  3151 0000101B 415E                <5>  pop %1
+  3152                              <5>  %rotate -1
+  3153 0000101D 415D                <5>  pop %1
+  3154                              <5>  %rotate -1
+  3155 0000101F 415C                <5>  pop %1
+  3156                              <5>  %rotate -1
+  3157 00001021 5B                  <5>  pop %1
+  3158                              <5>  %rotate -1
+  3159 00001022 5D                  <5>  pop %1
+  3160 00001023 C3                  <3>  ret
+  3161                              <1> __ReadTok_INVALID:
+  3162                              <1>         Panic 100, 'Invalid Token!', NL
+  3163                              <2>  WriteLit STDERR, %2
+  3164 00001024 EB0F                <3>  jmp %%endstr
+  3165 00001026 496E76616C69642054- <3>  %%str: db %2
+  3166 0000102F 6F6B656E210A        <3>
+  3167                              <3>  %%endstr:
+  3168 00001035 B801000000          <3>  mov rax, SYS_WRITE
+  3169 0000103A BF02000000          <3>  mov rdi, %1
+  3170 0000103F 48BE-               <3>  mov rsi, %%str
+  3171 00001041 [2610000000000000]  <3>
+  3172 00001049 BA0F000000          <3>  mov rdx, %%endstr-%%str
+  3173 0000104E 0F05                <3>  syscall
+  3174                              <2> 
+  3175 00001050 B83C000000          <2>  mov rax, SYS_EXIT
+  3176 00001055 BF64000000          <2>  mov rdi, %1
+  3177 0000105A 0F05                <2>  syscall
+  3178                              <1> 
+  3179                              <1> ;;; ***************
+  3180                              <1> ;;; Peek/Eat Tokens
+  3181                              <1> 
+  3182                              <1>         section .data
+  3183 00100028 1F00000000000000    <1> tok_cache:      dq      TOKEN_INVALID
+  3184 00100030 0000000000000000    <1> tok_data:       dq      0
+  3185                              <1> 
+  3186                              <1>         section .text
+  3187                              <1> PeekTok:
+  3188                              <1>         fn
+  3189                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+  3190                              <3>  %rep %0
+  3191                              <3>  push %1
+  3192                              <3>  %rotate 1
+  3193                              <3>  %endrep
+  3194 0000105C 55                  <4>  push %1
+  3195                              <4>  %rotate 1
+  3196 0000105D 53                  <4>  push %1
+  3197                              <4>  %rotate 1
+  3198 0000105E 4154                <4>  push %1
+  3199                              <4>  %rotate 1
+  3200 00001060 4155                <4>  push %1
+  3201                              <4>  %rotate 1
+  3202 00001062 4156                <4>  push %1
+  3203                              <4>  %rotate 1
+  3204 00001064 4157                <4>  push %1
+  3205                              <4>  %rotate 1
+  3206 00001066 4889E5              <2>  mov rbp, rsp
+  3207 00001069 48833C25[28001000]- <1>         cmp QWORD [tok_cache], TOKEN_INVALID
+  3208 00001071 1F                  <1>
+  3209 00001072 741B                <1>         je __PeekTok_CacheMiss
+  3210                              <1> __PeekTok_CacheHit:
+  3211 00001074 488B1425[30001000]  <1>         mov rdx, [tok_data]
+  3212                              <1>         fnret [tok_cache]
+  3213 0000107C 488B0425[28001000]  <2>  mov rax, %1
+  3214                              <2>  fnret
+  3215                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3216                              <4>  %rep %0
+  3217                              <4>  %rotate -1
+  3218                              <4>  pop %1
+  3219                              <4>  %endrep
+  3220                              <5>  %rotate -1
+  3221 00001084 415F                <5>  pop %1
+  3222                              <5>  %rotate -1
+  3223 00001086 415E                <5>  pop %1
+  3224                              <5>  %rotate -1
+  3225 00001088 415D                <5>  pop %1
+  3226                              <5>  %rotate -1
+  3227 0000108A 415C                <5>  pop %1
+  3228                              <5>  %rotate -1
+  3229 0000108C 5B                  <5>  pop %1
+  3230                              <5>  %rotate -1
+  3231 0000108D 5D                  <5>  pop %1
+  3232 0000108E C3                  <3>  ret
+  3233                              <1> __PeekTok_CacheMiss:
+  3234                              <1>         fcall ReadTok
+  3235 0000108F E862FCFFFF          <2>  call %1
+  3236 00001094 48890425[28001000]  <1>         mov [tok_cache], rax
+  3237 0000109C 48891425[30001000]  <1>         mov [tok_data], rdx
+  3238                              <1>         fnret rax
+  3239 000010A4 4889C0              <2>  mov rax, %1
+  3240                              <2>  fnret
+  3241                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3242                              <4>  %rep %0
+  3243                              <4>  %rotate -1
+  3244                              <4>  pop %1
+  3245                              <4>  %endrep
+  3246                              <5>  %rotate -1
+  3247 000010A7 415F                <5>  pop %1
+  3248                              <5>  %rotate -1
+  3249 000010A9 415E                <5>  pop %1
+  3250                              <5>  %rotate -1
+  3251 000010AB 415D                <5>  pop %1
+  3252                              <5>  %rotate -1
+  3253 000010AD 415C                <5>  pop %1
+  3254                              <5>  %rotate -1
+  3255 000010AF 5B                  <5>  pop %1
+  3256                              <5>  %rotate -1
+  3257 000010B0 5D                  <5>  pop %1
+  3258 000010B1 C3                  <3>  ret
+  3259                              <1> 
+  3260                              <1> EatTok:
+  3261                              <1>         fn
+  3262                              <2>  multipush rbp, rbx, r12, r13, r14, r15
+  3263                              <3>  %rep %0
+  3264                              <3>  push %1
+  3265                              <3>  %rotate 1
+  3266                              <3>  %endrep
+  3267 000010B2 55                  <4>  push %1
+  3268                              <4>  %rotate 1
+  3269 000010B3 53                  <4>  push %1
+  3270                              <4>  %rotate 1
+  3271 000010B4 4154                <4>  push %1
+  3272                              <4>  %rotate 1
+  3273 000010B6 4155                <4>  push %1
+  3274                              <4>  %rotate 1
+  3275 000010B8 4156                <4>  push %1
+  3276                              <4>  %rotate 1
+  3277 000010BA 4157                <4>  push %1
+  3278                              <4>  %rotate 1
+  3279 000010BC 4889E5              <2>  mov rbp, rsp
+  3280                              <1>         fcall PeekTok
+  3281 000010BF E898FFFFFF          <2>  call %1
+  3282 000010C4 4989C4              <1>         mov r12, rax
+  3283                              <1>         fcall ReadTok
+  3284 000010C7 E82AFCFFFF          <2>  call %1
+  3285 000010CC 48890425[28001000]  <1>         mov [tok_cache], rax
+  3286 000010D4 48891425[30001000]  <1>         mov [tok_data], rdx
+  3287                              <1>         fnret r12
+  3288 000010DC 4C89E0              <2>  mov rax, %1
+  3289                              <2>  fnret
+  3290                              <3>  multipop rbp, rbx, r12, r13, r14, r15
+  3291                              <4>  %rep %0
+  3292                              <4>  %rotate -1
+  3293                              <4>  pop %1
+  3294                              <4>  %endrep
+  3295                              <5>  %rotate -1
+  3296 000010DF 415F                <5>  pop %1
+  3297                              <5>  %rotate -1
+  3298 000010E1 415E                <5>  pop %1
+  3299                              <5>  %rotate -1
+  3300 000010E3 415D                <5>  pop %1
+  3301                              <5>  %rotate -1
+  3302 000010E5 415C                <5>  pop %1
+  3303                              <5>  %rotate -1
+  3304 000010E7 5B                  <5>  pop %1
+  3305                              <5>  %rotate -1
+  3306 000010E8 5D                  <5>  pop %1
+  3307 000010E9 C3                  <3>  ret
+  3308                                  
+  3309                                          section .text
+  3310                                          global _start
+  3311                                  _start:
+  3312                                          WriteLit STDOUT, 'Welcome to Lang Compiler!', NL
+  3313 000010EA EB1A                <1>  jmp %%endstr
+  3314 000010EC 57656C636F6D652074- <1>  %%str: db %2
+  3315 000010F5 6F204C616E6720436F- <1>
+  3316 000010FE 6D70696C6572210A    <1>
+  3317                              <1>  %%endstr:
+  3318 00001106 B801000000          <1>  mov rax, SYS_WRITE
+  3319 0000110B BF01000000          <1>  mov rdi, %1
+  3320 00001110 48BE-               <1>  mov rsi, %%str
+  3321 00001112 [EC10000000000000]  <1>
+  3322 0000111A BA1A000000          <1>  mov rdx, %%endstr-%%str
+  3323 0000111F 0F05                <1>  syscall
+  3324                                  
+  3325                                  ReadPrintTok:
+  3326                                          fcall ReadTok
+  3327 00001121 E8D0FBFFFF          <1>  call %1
+  3328 00001126 4989C4                          mov r12, rax
+  3329                                          fcall PrintTOKEN, r12
+  3330 00001129 4C89E7              <1>  mov rdi, %2
+  3331 0000112C E8EDF4FFFF          <1>  call %1
+  3332 00001131 4983FC1D                        cmp r12, TOKEN_EOF
+  3333 00001135 75EA                            jne ReadPrintTok
+  3334                                  
+  3335 00001137 B83C000000                      mov rax, 60
+  3336 0000113C BF00000000                      mov rdi, 0
+  3337 00001141 0F05                            syscall

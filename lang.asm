@@ -1,14 +1,14 @@
 %include "util.asm"
 %include "io.asm"
 %include "memory.asm"
-%include "hash.asm"
+%include "string.asm"
 %include "intern.asm"
 %include "lexer.asm"
 
         section .text
         global _start
 _start:
-        WriteStr STDOUT, 'Welcome to Lang Compiler!', NL
+        WriteLit STDOUT, 'Welcome to Lang Compiler!', NL
 
 ReadPrintTok:
         fcall ReadTok

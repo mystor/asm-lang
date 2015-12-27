@@ -80,6 +80,7 @@ __EatChr_Done:
 
         section .rodata
 ReadTok_Map:
+        times 10 dq __ReadTok_INVALID ;'\0'-'\t'
         dq __ReadTok_IGNORE           ;LF
         times 2 dq __ReadTok_INVALID  ;VT-FF
         dq __ReadTok_IGNORE           ;CR
@@ -91,7 +92,7 @@ ReadTok_Map:
         dq __ReadTok_INVALID          ;'$'
         dq __ReadTok_MODULO           ;'%'
         dq __ReadTok_AND              ;'&'
-        dq __ReadTok_STRING           ;'''
+        dq __ReadTok_INVALID          ;'''  ; XXX: Char?
         dq __ReadTok_LPAREN           ;'('
         dq __ReadTok_RPAREN           ;')'
         dq __ReadTok_STAR             ;'*'
@@ -126,22 +127,19 @@ ReadTok_Map_LEN:   equ     $ - ReadTok_Map
         section .text
 ReadTok:
         fn
-__ReadTok_IGNORE:               ; Jump back to here when should ignore
+__ReadTok_IGNORE: ; Jump back to here when should ignore
         fcall EatChr
-        mov r12, rax
 
-        ;; EOF
-        cmp r12, -1
+        ;; Handle EOF seperately
+        cmp rax, -1
         je __ReadTok_EOF
-        ;; Underflow
-        sub r12, 10
-        jl __ReadTok_INVALID
-        ;; Overflow
-        cmp r12, ReadTok_Map_LEN
-        jge __ReadTok_INVALID        ; If chr >= ReadTok_Map_LEN, invalid
 
-        jmp [r12*8 + ReadTok_Map]     ; Jump!
-        ;; Dumb Tokens (no data)
+        ;; Bounds Check
+        cmp rax, ReadTok_Map_LEN ; XXX: Make sure that this is an unsigned comparison
+        jge __ReadTok_INVALID ; If chr >= ReadTok_Map_LEN, invalid
+
+        jmp [rax*8 + ReadTok_Map] ; Jump!
+
 __ReadTok_LBRACE:
         fnret TOKEN_LBRACE
 __ReadTok_RBRACE:
@@ -199,6 +197,41 @@ __ReadTok_TILDE:
 
         ;; Special, Tokens (have data)
 __ReadTok_IDENT:
+        fcall StringBuilder_Addc, rax
+
+__ReadTok_IDENT_Loop:
+        fcall PeekChr
+        cmp rax, 48             ; '0'
+        jl __ReadTok_IDENT_Done
+        cmp rax, 57             ; '9'
+        jle __ReadTok_IDENT_Read
+
+        cmp rax, 65             ; 'A'
+        jl __ReadTok_IDENT_Done
+        cmp rax, 90             ; 'Z'
+        jle __ReadTok_IDENT_Read
+
+        cmp rax, 97             ; 'a'
+        jl __ReadTok_IDENT_Done
+        cmp rax, 123            ; 'z'
+        jle __ReadTok_IDENT_Read
+        jmp __ReadTok_IDENT_Done
+
+__ReadTok_IDENT_Read:
+        fcall StringBuilder_Addc, rax
+        fcall EatChr
+        jmp __ReadTok_IDENT_Loop
+
+__ReadTok_IDENT_Done:
+        fcall StringBuilder_Done
+
+        mov r15, rax
+        ;; XXX: Save this value somewhere
+        fcall Write64, r15
+        fcall WriteStr, r15
+        WriteChr NL
+
+        ;; XXX: FIXME
         fnret TOKEN_IDENT
 __ReadTok_STRING:
         mov r13, rsp            ; End of String
@@ -235,7 +268,6 @@ __ReadTok_STRING_End:
         mov r14, rax
         fcall Write64, r14
         fcall Write64, [r14-8]
-        WriteStr STDOUT, 'This Far!', NL
 
         ;; Free the stack space
         add rsp, r13

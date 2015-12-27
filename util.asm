@@ -116,7 +116,7 @@ Print%[ENAME]:
             %assign cnt cnt-1
             cmp r12, cnt
             jne %$Next
-            WriteStr STDOUT, %[ENAME]_%[cnt]_NAME, NL
+            WriteLit STDOUT, %[ENAME]_%[cnt]_NAME, NL
             jmp %%Done
     %$Next:
             %pop

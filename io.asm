@@ -22,8 +22,8 @@
 %define STDERR          2
 
 ;;; Write out a file to FILENAME
-;;; USAGE: WriteStr FILE 'string','com','pon','ents'
-%macro WriteStr 2+
+;;; USAGE: WriteLit FILE 'string','com','pon','ents'
+%macro WriteLit 2+
         jmp     %%endstr
     %%str:      db      %2
     %%endstr:
@@ -96,6 +96,18 @@ __Write64Done:
 
         fnret
 
+WriteStr:
+        fn r12
+        fcall StrLen, r12
+
+        mov rdx, rax
+        mov rax, SYS_WRITE
+        mov rdi, STDOUT,
+        mov rsi, r12
+        syscall
+
+        fnret
+
 ;;; Read in a single character
 ;;; USAGE: GetChr reg <FILE = STDIN>
 %macro GetChr 1
@@ -123,7 +135,7 @@ __Write64Done:
 %endmacro
 
 %macro Panic 2+
-        WriteStr STDERR, %2
+        WriteLit STDERR, %2
 
         mov rax, SYS_EXIT
         mov rdi, %1

@@ -1,3 +1,5 @@
+;;; XXX: We aren't using the intern table right now, because it's inconvenient compared
+;;; to just strcmp-ing every time we want to perform a comparison.
         section .data
 %define INTERN_HT_SIZE  (1024*1024/8)   ;1 mb
 __Intern_HashTable:     times   INTERN_HT_SIZE  dq      0
@@ -6,7 +8,7 @@ __Intern_HashTable:     times   INTERN_HT_SIZE  dq      0
 Intern:
         fn r12, r13             ; r12=string, r13=length
         ;; Hash the string
-        fcall HashStr, r12, r13, INTERN_HT_SIZE
+        fcall StrHash, r12, r13, INTERN_HT_SIZE
         mov r14, rax
 
 __Intern_CheckSlot:
