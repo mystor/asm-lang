@@ -1,3 +1,5 @@
+;; -*- nasm -*-
+
 ;;; Memory "management" module. Provides mechanisms for allocating memory
 ;;; Including building strings. (N.B. Horribly naive and inefficient)
 ;;; No mechanism is provided for freeing memory. (GC is an optimization ^.^)

@@ -1,3 +1,5 @@
+;; -*- nasm -*-
+
         section .text
 enum TOKEN
         ;; Dumb Tokens (no data)

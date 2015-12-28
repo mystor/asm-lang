@@ -1,3 +1,5 @@
+;; -*- nasm -*-
+
 %define NL              10      ; EOL
 
 ;;; System Calls

@@ -1,3 +1,5 @@
+;; -*- nasm -*-
+%use altreg                     ; rax, etc... to r1...
 %include "util.asm"
 %include "io.asm"
 %include "memory.asm"
