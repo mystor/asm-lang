@@ -68,6 +68,7 @@
 %macro fn 0
         multipush rbp, r12, r13, r14, r15
         mov rbp, rsp
+%assign framesize 0
 %endmacro
 %macro fn 1
         fn
@@ -96,6 +97,14 @@
         fnret
 %endmacro
 
+;;; Allocating stack locals
+%macro alloca 2
+        ; %xdefine %2_OFFSET
+        %xdefine %2 rbp+framesize
+        %assign framesize framesize+%1
+%endmacro
+
+
 ;;; Enums
 %macro enum 1
         %assign cnt 0
@@ -123,3 +132,29 @@ Print%[ENAME]:
     %%Done:
         fnret
 %endmacro
+
+;;; Structs
+%macro struct 1
+        %assign offset 0
+        %xdefine SNAME %1
+%endmacro
+%macro field 1
+        ;; Token_type
+        ;; Token_data
+        ;; e.g. mov rax, [r13+Token_type]
+
+        %xdefine %[SNAME]_%1 offset
+        %assign offset offset+8
+%endmacro
+%macro endstruct 0
+;;; Get the size of the type!
+        %xdefine SizeOf%[SNAME] offset
+        %xdefine static_[SNAME] times offset dq 0
+%[SNAME]_copy:
+        fn r8, r9
+        fcall MemCpy, r8, r9, SizeOf%[SNAME]
+        fnret
+%endmacro
+
+;;; For consistency with SizeOf for structs
+%define SizeOfReg 8

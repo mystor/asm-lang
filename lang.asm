@@ -1,5 +1,4 @@
 ;; -*- nasm -*-
-%use altreg                     ; rax, etc... to r1...
 %include "util.asm"
 %include "io.asm"
 %include "memory.asm"
@@ -9,16 +8,18 @@
 
         section .text
         global _start
-_start:
+_start: fn
+        alloca SizeOfToken, tok
+        lea r12, [tok]
         WriteLit STDOUT, 'Welcome to Lang Compiler!', NL
 
 ReadPrintTok:
-        fcall ReadTok
-        mov r12, rax
-        fcall PrintTOKEN, r12
-        cmp r12, TOKEN_EOF
+        fcall ReadTok, r12
+        ;; XXX: Make a PrintToken function which prints the token,
+        ;; including (maybe) data.
+        ; mov r13, [r12+Token_type]
+        fcall PrintTOKEN, [r12+Token_type]
+        cmp DWORD [r12+Token_type], TOKEN_EOF
         jne ReadPrintTok
 
-        mov rax, 60
-        mov rdi, 0
-        syscall
+        Panic 0, 'Exited normally', NL

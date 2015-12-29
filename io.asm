@@ -59,7 +59,7 @@ hex_table:      db      '0123456789abcdef'
 hex_prefix:     db      '0x'
 hex_len:        equ     $ - hex_prefix
 
-Write64:
+WriteHex:
         fn rax
         mov r8, rsp
 
@@ -77,10 +77,10 @@ Write64:
         shr rax, 4
         ;; Check if we're done already
         cmp rax, 0
-        je __Write64Done
+        je .done
         %endrep
 
-__Write64Done:
+.done:
         ;; Print the 0x prefix
         mov rax, SYS_WRITE
         mov rdi, STDOUT

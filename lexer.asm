@@ -46,6 +46,10 @@ enum TOKEN
         opt COUNT
 endenum
 
+struct Token
+        field type
+        field data
+endstruct
 
 ;;; ***************
 ;;; Peek/Eat Chars
@@ -127,8 +131,15 @@ ReadTok_Map_LEN:   equ     $ - ReadTok_Map
 
 
         section .text
+
+%macro rettok 1-2 0
+        mov QWORD [r12+Token_type], %1
+        mov QWORD [r12+Token_data], %2
+        fnret
+%endmacro
+
 ReadTok:
-        fn
+        fn r12                  ; r12 = output token pointer
 __ReadTok_IGNORE: ; Jump back to here when should ignore
         fcall EatChr
 
@@ -143,59 +154,59 @@ __ReadTok_IGNORE: ; Jump back to here when should ignore
         jmp [rax*8 + ReadTok_Map] ; Jump!
 
 __ReadTok_LBRACE:
-        fnret TOKEN_LBRACE
+        rettok TOKEN_LBRACE
 __ReadTok_RBRACE:
-        fnret TOKEN_RBRACE
+        rettok TOKEN_RBRACE
 __ReadTok_LPAREN:
-        fnret TOKEN_LPAREN
+        rettok TOKEN_LPAREN
 __ReadTok_RPAREN:
-        fnret TOKEN_RPAREN
+        rettok TOKEN_RPAREN
 __ReadTok_LBRACKET:
-        fnret TOKEN_LBRACKET
+        rettok TOKEN_LBRACKET
 __ReadTok_RBRACKET:
-        fnret TOKEN_RBRACKET
+        rettok TOKEN_RBRACKET
 
         ;; Symbols
 __ReadTok_NOT:
-        fnret TOKEN_NOT
+        rettok TOKEN_NOT
 __ReadTok_HASH:
-        fnret TOKEN_HASH
+        rettok TOKEN_HASH
 __ReadTok_MODULO:
-        fnret TOKEN_MODULO
+        rettok TOKEN_MODULO
 __ReadTok_AND:
-        fnret TOKEN_AND
+        rettok TOKEN_AND
 __ReadTok_STAR:
-        fnret TOKEN_STAR
+        rettok TOKEN_STAR
 __ReadTok_PLUS:
-        fnret TOKEN_PLUS
+        rettok TOKEN_PLUS
 __ReadTok_DASH:
-        fnret TOKEN_DASH
+        rettok TOKEN_DASH
 __ReadTok_DOT:
-        fnret TOKEN_DOT
+        rettok TOKEN_DOT
 __ReadTok_COMMA:
-        fnret TOKEN_COMMA
+        rettok TOKEN_COMMA
 __ReadTok_SLASH:
-        fnret TOKEN_SLASH
+        rettok TOKEN_SLASH
 __ReadTok_COLON:
-        fnret TOKEN_COLON
+        rettok TOKEN_COLON
 __ReadTok_SEMI:
-        fnret TOKEN_SEMI
+        rettok TOKEN_SEMI
 __ReadTok_LT:
-        fnret TOKEN_LT
+        rettok TOKEN_LT
 __ReadTok_EQ:
-        fnret TOKEN_EQ
+        rettok TOKEN_EQ
 __ReadTok_GT:
-        fnret TOKEN_GT
+        rettok TOKEN_GT
 __ReadTok_QMARK:
-        fnret TOKEN_QMARK
+        rettok TOKEN_QMARK
 __ReadTok_AT:
-        fnret TOKEN_AT
+        rettok TOKEN_AT
 __ReadTok_CARET:
-        fnret TOKEN_CARET
+        rettok TOKEN_CARET
 __ReadTok_BAR:
-        fnret TOKEN_BAR
+        rettok TOKEN_BAR
 __ReadTok_TILDE:
-        fnret TOKEN_TILDE
+        rettok TOKEN_TILDE
 
         ;; Special, Tokens (have data)
 __ReadTok_IDENT:
@@ -229,19 +240,19 @@ __ReadTok_IDENT_Done:
 
         mov r15, rax
         ;; XXX: Save this value somewhere
-        fcall Write64, r15
+        fcall WriteHex, r15
         fcall WriteStr, r15
         WriteChr NL
 
         ;; XXX: FIXME
-        fnret TOKEN_IDENT
+        rettok TOKEN_IDENT
 __ReadTok_STRING:
-        mov r12, rax            ; Store string delimiter
+        mov r13, rax            ; Store string delimiter
 __ReadTok_STRING_Loop:
         fcall EatChr
         cmp rax, -1             ; EOF
         je __ReadTok_STRING_Fail
-        cmp al, r12b            ; " or ' (delimiter)
+        cmp al, r13b            ; " or ' (delimiter)
         je __ReadTok_STRING_End
         cmp al, 92              ; \ ('\' messes up syntax highlighting)
         je __ReadTok_STRING_ReadEscChr
@@ -261,12 +272,12 @@ __ReadTok_STRING_End:
 
         mov r15, rax
         ;; XXX: Save this value somewhere
-        fcall Write64, r15
+        fcall WriteHex, r15
         fcall WriteStr, r15
         WriteChr NL
 
         ;; XXX: FIXME
-        fnret TOKEN_STRING
+        rettok TOKEN_STRING
 __ReadTok_STRING_Fail:
         Panic 100, 'Unexpected EOF while parsing String', NL
 
@@ -282,8 +293,8 @@ __ReadTok_NUMBER_Loop:
 
         fcall EatChr
         ;; Get numeric value of digit
-        mov r12, rax
-        sub r12, '0'
+        mov r13, rax
+        sub r13, '0'
 
         ;; Multiply accumulator by 10
         mov rax, r15
@@ -293,48 +304,45 @@ __ReadTok_NUMBER_Loop:
         jne __ReadTok_NUMBER_Overflow
 
         ;; Save new sum
-        add rax, r12
+        add rax, r13
         jo __ReadTok_NUMBER_Overflow
         mov r15, rax
         jmp __ReadTok_NUMBER_Loop
 __ReadTok_NUMBER_Done:
-        fcall Write64, r15
-        fnret TOKEN_NUMBER
+        fcall WriteHex, r15
+        rettok TOKEN_NUMBER
 __ReadTok_NUMBER_Overflow:
         Panic 100, 'Number overflowed while reading', NL
 
         ;; Special Cases
 __ReadTok_EOF:
-        fnret TOKEN_EOF
+        rettok TOKEN_EOF
 __ReadTok_INVALID:
         Panic 100, 'Invalid Token!', NL
+
+%undef rettok
 
 ;;; ***************
 ;;; Peek/Eat Tokens
 
         section .data
-tok_cache:      dq      TOKEN_INVALID
-tok_data:       dq      0
+tok_cache:
+.type: dq TOKEN_INVALID
+.data: dq 0
 
         section .text
 PeekTok:
-        fn
-        cmp QWORD [tok_cache], TOKEN_INVALID
-        je __PeekTok_CacheMiss
-__PeekTok_CacheHit:
-        mov rdx, [tok_data]
-        fnret [tok_cache]
+        fn r12
+        cmp QWORD [tok_cache + Token_type], TOKEN_INVALID
+        jne __PeekTok_CacheHit
 __PeekTok_CacheMiss:
-        fcall ReadTok
-        mov [tok_cache], rax
-        mov [tok_data], rdx
-        fnret rax
+        fcall ReadTok, tok_cache
+__PeekTok_CacheHit:
+        fcall Token_copy, tok_cache, r12
+        fnret
 
 EatTok:
-        fn
-        fcall PeekTok
-        mov r12, rax
-        fcall ReadTok
-        mov [tok_cache], rax
-        mov [tok_data], rdx
-        fnret r12
+        fn r12
+        fcall PeekTok, r12
+        fcall ReadTok, tok_cache
+        fnret
