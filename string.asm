@@ -18,14 +18,14 @@ __StrLen_Done:
 StrCmp:
         fn r12, r13             ; r12 = string 1, r13 = string 2
 __StrCmp_Main:
-        mov rax, [r12]
-        mov rbx, [r13]
-        sub rax, rbx
+        mov al, [r12]
+        mov bl, [r13]
+        sub al, bl
         je __StrCmp_Same
 __StrCmp_Diff:
         fnret rax
 __StrCmp_Same:
-        cmp rbx, 0              ; End of the string!
+        cmp bl, 0              ; End of the string!
         je __StrCmp_Eq
         ;; Loop back around with incremented args
         add r12, 1

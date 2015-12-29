@@ -1,4 +1,4 @@
-;; -*- nasm -*-
+;;; -*- nasm -*-
 
 ;;; Memory "management" module. Provides mechanisms for allocating memory
 ;;; Including building strings. (N.B. Horribly naive and inefficient)

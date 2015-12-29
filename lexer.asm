@@ -1,4 +1,4 @@
-;; -*- nasm -*-
+;;; -*- nasm -*-
 
         section .text
 enum TOKEN
@@ -31,6 +31,9 @@ enum TOKEN
         opt CARET
         opt BAR
         opt TILDE
+
+        ;; Keywords
+        opt PRINT
 
         ;; Special, Tokens (have data)
         opt IDENT
@@ -139,7 +142,7 @@ ReadTok_Map_LEN:   equ     $ - ReadTok_Map
 %endmacro
 
 ReadTok:
-        fn r12                  ; r12 = output token pointer
+        fn r12                  ; r12 = OUT token
 __ReadTok_IGNORE: ; Jump back to here when should ignore
         fcall EatChr
 
@@ -237,15 +240,15 @@ __ReadTok_IDENT_Read:
 
 __ReadTok_IDENT_Done:
         fcall StringBuilder_Done
-
         mov r15, rax
-        ;; XXX: Save this value somewhere
-        fcall WriteHex, r15
-        fcall WriteStr, r15
-        WriteChr NL
 
-        ;; XXX: FIXME
-        rettok TOKEN_IDENT
+        cmplit r15, 'PRINT'
+        je __ReadTok_PRINT
+
+        rettok TOKEN_IDENT, r15
+__ReadTok_PRINT:
+        rettok TOKEN_PRINT
+
 __ReadTok_STRING:
         mov r13, rax            ; Store string delimiter
 __ReadTok_STRING_Loop:
@@ -276,8 +279,7 @@ __ReadTok_STRING_End:
         fcall WriteStr, r15
         WriteChr NL
 
-        ;; XXX: FIXME
-        rettok TOKEN_STRING
+        rettok TOKEN_STRING, r15
 __ReadTok_STRING_Fail:
         Panic 100, 'Unexpected EOF while parsing String', NL
 
@@ -309,8 +311,8 @@ __ReadTok_NUMBER_Loop:
         mov r15, rax
         jmp __ReadTok_NUMBER_Loop
 __ReadTok_NUMBER_Done:
-        fcall WriteHex, r15
-        rettok TOKEN_NUMBER
+        ; fcall WriteHex, r15
+        rettok TOKEN_NUMBER, r15
 __ReadTok_NUMBER_Overflow:
         Panic 100, 'Number overflowed while reading', NL
 
@@ -332,17 +334,20 @@ tok_cache:
 
         section .text
 PeekTok:
-        fn r12
+        fn r12                  ; r12 = OUT token
+        cmp r12, 0              ; If r12 is null, abort
+        je .Exit
         cmp QWORD [tok_cache + Token_type], TOKEN_INVALID
-        jne __PeekTok_CacheHit
-__PeekTok_CacheMiss:
+        jne .CacheHit
+.CacheMiss:
         fcall ReadTok, tok_cache
-__PeekTok_CacheHit:
+.CacheHit:
         fcall Token_copy, tok_cache, r12
+.Exit:
         fnret
 
 EatTok:
-        fn r12
+        fn r12                  ; r12 = OUT token
         fcall PeekTok, r12
         fcall ReadTok, tok_cache
         fnret

@@ -1,4 +1,4 @@
-;; -*- nasm -*-
+;;; -*- nasm -*-
 
 ;;; From http://www.tortall.net/projects/yasm/manual/html/nasm-multi-line-macros.html#nasm-macro-rotate
 %macro  multipush 1-*
@@ -104,7 +104,6 @@
         %assign framesize framesize+%1
 %endmacro
 
-
 ;;; Enums
 %macro enum 1
         %assign cnt 0
@@ -117,14 +116,14 @@
 %endmacro
 %macro endenum 0
 ;;; Support for debug printing
-Print%[ENAME]:
+Write%[ENAME]:
         fn r12
         %rep cnt
             %push enum_item
             %assign cnt cnt-1
             cmp r12, cnt
             jne %$Next
-            WriteLit STDOUT, %[ENAME]_%[cnt]_NAME, NL
+            WriteLit STDOUT, %[ENAME]_%[cnt]_NAME
             jmp %%Done
     %$Next:
             %pop
@@ -158,3 +157,12 @@ Print%[ENAME]:
 
 ;;; For consistency with SizeOf for structs
 %define SizeOfReg 8
+
+;;; String helper for comparing with integer
+%macro cmplit 2
+        section .data
+%%str: db %2, 0
+        section .text
+        fcall StrCmp, %1, %%str
+        cmp rax, 0
+%endmacro

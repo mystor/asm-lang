@@ -1,4 +1,4 @@
-;; -*- nasm -*-
+;;; -*- nasm -*-
 
 ;;; XXX: We aren't using the intern table right now, because it's inconvenient compared
 ;;; to just strcmp-ing every time we want to perform a comparison.

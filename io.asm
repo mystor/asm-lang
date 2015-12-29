@@ -1,4 +1,4 @@
-;; -*- nasm -*-
+;;; -*- nasm -*-
 
 %define NL              10      ; EOL
 
@@ -63,10 +63,6 @@ WriteHex:
         fn rax
         mov r8, rsp
 
-        ;; Add the newline character
-        sub r8, 1
-        mov BYTE [r8], 10
-
         ;; Calculate each of the hex characters
         %rep 16
         sub r8, 1
@@ -104,7 +100,7 @@ WriteStr:
 
         mov rdx, rax
         mov rax, SYS_WRITE
-        mov rdi, STDOUT,
+        mov rdi, STDOUT
         mov rsi, r12
         syscall
 
