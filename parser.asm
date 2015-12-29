@@ -3,12 +3,11 @@
 ;;; Parse a statement from the input stream
 ParseStmt:
         fn
-        alloca SizeOfToken, tok
+        alloca SizeOfToken
+        mov r13, rax
+        fcall EatTok, r13
 
-        lea r8, [tok]
-        fcall EatTok, r8
-
-        mov rax, [tok+Token_type]
+        mov rax, [r13+Token_type]
         cmp rax, TOKEN_PRINT
         je __ParseStmt_PRINT
         ;; ...
@@ -25,20 +24,19 @@ __ParseStmt_PRINT:
         fnret r12
 __ParseStmt_INVALID:
         Panic 100, "Unrecognized statement starter!", NL
-%undef tok
 
 ParseExpr:
         fn
-        alloca SizeOfToken, tok
+        alloca SizeOfToken
+        mov r14, rax
 
         fcall ParseTerm
         mov r12, rax
 __ParseExpr_Loop:
-        lea r8, [tok]
-        fcall PeekTok, r8
-        cmp QWORD [tok+Token_type], TOKEN_PLUS
+        fcall PeekTok, r14
+        cmp QWORD [r14+Token_type], TOKEN_PLUS
         je __ParseExpr_PLUS
-        cmp QWORD [tok+Token_type], TOKEN_DASH
+        cmp QWORD [r14+Token_type], TOKEN_DASH
         je __ParseExpr_MINUS
         fnret r12
 
@@ -58,20 +56,19 @@ __ParseExpr_BinOp:
         fcall ParseTerm
         mov [r12+ExprBinOp_right], rax
         jmp __ParseExpr_Loop
-%undef tok
 
 ParseTerm:
         fn
-        alloca SizeOfToken, tok
+        alloca SizeOfToken
+        mov r13, rax
 
         fcall ParseFactor
         mov r12, rax
 __ParseTerm_Loop:
-        lea r8, [tok]
-        fcall PeekTok, r8
-        cmp QWORD [tok+Token_type], TOKEN_STAR
+        fcall PeekTok, r13
+        cmp QWORD [r13+Token_type], TOKEN_STAR
         je __ParseTerm_MULTIPLY
-        cmp QWORD [tok+Token_type], TOKEN_SLASH
+        cmp QWORD [r13+Token_type], TOKEN_SLASH
         je __ParseTerm_DIVIDE
         fnret r12
 
@@ -91,16 +88,14 @@ __ParseTerm_BinOp:
         fcall ParseFactor
         mov [r12+ExprBinOp_right], rax
         jmp __ParseTerm_Loop
-%undef tok
 
 ParseFactor:
         fn
-        alloca SizeOfToken, tok
+        alloca SizeOfToken
+        mov r14, rax
+        fcall EatTok, r14
 
-        lea r8, [tok]
-        fcall EatTok, r8
-
-        mov r12, [tok+Token_type]
+        mov r12, [r14+Token_type]
         cmp r12, TOKEN_NUMBER
         je __ParseFactor_NUMBER
         jmp __ParseFactor_FAIL
@@ -108,9 +103,8 @@ __ParseFactor_NUMBER:
         fcall Malloc, SizeOfExprInt
         mov r13, rax
         mov QWORD [r13+ExprInt_type], EXPR_INTEGER
-        mov rbx, [tok+Token_data]
+        mov rbx, [r14+Token_data]
         mov [r13+ExprInt_value], rbx
         fnret r13
 __ParseFactor_FAIL:
         Panic 100, 'Failure while parsing a Factor', NL
-%undef tok

@@ -13,8 +13,8 @@
         section .text
         global _start
 _start: fn
-        alloca SizeOfToken, tok
-        lea r12, [tok]
+        alloca SizeOfToken
+        mov r12, rax
         WriteLit STDOUT, 'Welcome to Lang Compiler!', NL
 
 .ParsePrintStmt:
@@ -24,18 +24,8 @@ _start: fn
 
         fcall ParseStmt
         fcall WriteStmt, rax
+        WriteLit STDOUT, NL
 
         jmp .ParsePrintStmt
 .Exit:
         Panic 0, 'Exited Normally', NL
-
-ReadPrintTok:
-        fcall ReadTok, r12
-        ;; XXX: Make a PrintToken function which prints the token,
-        ;; including (maybe) data.
-        ; mov r13, [r12+Token_type]
-        fcall WriteTOKEN, [r12+Token_type]
-        cmp DWORD [r12+Token_type], TOKEN_EOF
-        jne ReadPrintTok
-
-        Panic 0, 'Exited normally', NL

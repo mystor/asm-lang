@@ -68,7 +68,6 @@
 %macro fn 0
         multipush rbp, r12, r13, r14, r15
         mov rbp, rsp
-%assign framesize 0
 %endmacro
 %macro fn 1
         fn
@@ -89,6 +88,7 @@
 
 ;;; Return from a function
 %macro fnret 0
+        mov rsp, rbp
         multipop rbp, r12, r13, r14, r15
         ret
 %endmacro
@@ -98,10 +98,9 @@
 %endmacro
 
 ;;; Allocating stack locals
-%macro alloca 2
-        ; %xdefine %2_OFFSET
-        %xdefine %2 rbp+framesize
-        %assign framesize framesize+%1
+%macro alloca 1
+        sub rsp, %1
+        mov rax, rsp
 %endmacro
 
 ;;; Enums

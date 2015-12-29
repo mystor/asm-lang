@@ -68,9 +68,9 @@ PeekChr:
 __PeekChr_CacheHit:
         fnret [chr_cache]
 __PeekChr_CacheMiss:
-        GetChr r12, STDIN
-        mov [chr_cache], r12
-        fnret r12
+        fcall GetChr, STDIN
+        mov [chr_cache], rax
+        fnret rax
 
 
 EatChr:
@@ -79,8 +79,8 @@ EatChr:
         mov r12, rax
         cmp QWORD [chr_cache], -1
         je __EatChr_Done
-        GetChr r13, STDIN
-        mov [chr_cache], r13
+        fcall GetChr, STDIN
+        mov [chr_cache], rax
 __EatChr_Done:
         fnret r12
 
@@ -240,12 +240,11 @@ __ReadTok_IDENT_Read:
 
 __ReadTok_IDENT_Done:
         fcall StringBuilder_Done
-        mov r15, rax
 
-        cmplit r15, 'PRINT'
+        cmplit rax, 'PRINT'
         je __ReadTok_PRINT
 
-        rettok TOKEN_IDENT, r15
+        rettok TOKEN_IDENT, rax
 __ReadTok_PRINT:
         rettok TOKEN_PRINT
 
@@ -272,14 +271,7 @@ __ReadTok_STRING_ReadEscChr:
         jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_End:
         fcall StringBuilder_Done
-
-        mov r15, rax
-        ;; XXX: Save this value somewhere
-        fcall WriteHex, r15
-        fcall WriteStr, r15
-        WriteChr NL
-
-        rettok TOKEN_STRING, r15
+        rettok TOKEN_STRING, rax
 __ReadTok_STRING_Fail:
         Panic 100, 'Unexpected EOF while parsing String', NL
 
