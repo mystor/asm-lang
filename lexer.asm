@@ -203,19 +203,19 @@ __ReadTok_IDENT:
 
 __ReadTok_IDENT_Loop:
         fcall PeekChr
-        cmp rax, 48             ; '0'
+        cmp rax, '0'
         jl __ReadTok_IDENT_Done
-        cmp rax, 57             ; '9'
+        cmp rax, '9'
         jle __ReadTok_IDENT_Read
 
-        cmp rax, 65             ; 'A'
+        cmp rax, 'A'
         jl __ReadTok_IDENT_Done
-        cmp rax, 90             ; 'Z'
+        cmp rax, 'Z'
         jle __ReadTok_IDENT_Read
 
-        cmp rax, 97             ; 'a'
+        cmp rax, 'a'
         jl __ReadTok_IDENT_Done
-        cmp rax, 123            ; 'z'
+        cmp rax, 'z'
         jle __ReadTok_IDENT_Read
         jmp __ReadTok_IDENT_Done
 
@@ -236,47 +236,72 @@ __ReadTok_IDENT_Done:
         ;; XXX: FIXME
         fnret TOKEN_IDENT
 __ReadTok_STRING:
-        mov r13, rsp            ; End of String
-__ReadTok_STRING_ReadChr:
+        mov r12, rax            ; Store string delimiter
+__ReadTok_STRING_Loop:
         fcall EatChr
         cmp rax, -1             ; EOF
         je __ReadTok_STRING_Fail
-        cmp al, 34             ; "
+        cmp al, r12b            ; " or ' (delimiter)
         je __ReadTok_STRING_End
-        cmp al, 92              ; \
+        cmp al, 92              ; \ ('\' messes up syntax highlighting)
         je __ReadTok_STRING_ReadEscChr
 
-        ;; Add the character to the string
-        sub rsp, 1
-        mov BYTE [rsp], al
-        jmp __ReadTok_STRING_ReadChr
-
-        ;; A \ was read, read in chr after it
+        fcall StringBuilder_Addc, rax
+        jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_ReadEscChr:
+        ;; A \ was read, read in chr after it
         fcall EatChr
         cmp rax, -1             ; EOF
         je __ReadTok_STRING_Fail
-        sub rsp, 1
-        mov BYTE [rsp], al
-        jmp __ReadTok_STRING_ReadChr
 
+        fcall StringBuilder_Addc, rax
+        jmp __ReadTok_STRING_Loop
+__ReadTok_STRING_End:
+        fcall StringBuilder_Done
+
+        mov r15, rax
+        ;; XXX: Save this value somewhere
+        fcall Write64, r15
+        fcall WriteStr, r15
+        WriteChr NL
+
+        ;; XXX: FIXME
+        fnret TOKEN_STRING
 __ReadTok_STRING_Fail:
         Panic 100, 'Unexpected EOF while parsing String', NL
 
-__ReadTok_STRING_End:
-        ;; TODO(michael): Reverse the string
-        sub r13, rsp
-        fcall Intern, rsp, r13  ; Intern the string
-        mov r14, rax
-        fcall Write64, r14
-        fcall Write64, [r14-8]
-
-        ;; Free the stack space
-        add rsp, r13
-
-        fnret TOKEN_STRING
 __ReadTok_NUMBER:
+        mov r15, rax ; r15 = accumulator
+        sub r15, '0'
+__ReadTok_NUMBER_Loop:
+        fcall PeekChr
+        cmp rax, '0'
+        jl __ReadTok_NUMBER_Done
+        cmp rax, '9'
+        jg __ReadTok_NUMBER_Done
+
+        fcall EatChr
+        ;; Get numeric value of digit
+        mov r12, rax
+        sub r12, '0'
+
+        ;; Multiply accumulator by 10
+        mov rax, r15
+        mov rdx, 10             ; mul accum by 10
+        imul rdx                 ; multiply accumulator by 10
+        cmp rdx, 0
+        jne __ReadTok_NUMBER_Overflow
+
+        ;; Save new sum
+        add rax, r12
+        jo __ReadTok_NUMBER_Overflow
+        mov r15, rax
+        jmp __ReadTok_NUMBER_Loop
+__ReadTok_NUMBER_Done:
+        fcall Write64, r15
         fnret TOKEN_NUMBER
+__ReadTok_NUMBER_Overflow:
+        Panic 100, 'Number overflowed while reading', NL
 
         ;; Special Cases
 __ReadTok_EOF:
