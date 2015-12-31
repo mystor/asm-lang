@@ -52,7 +52,7 @@ __Intern_NextSlot:
 __Intern_FillSlot:
         mov rax, r13
         add rax, 8              ; Add enough space for length header
-        fcall Malloc, rax
+        fcall Alloc, Heap, rax
 
         mov [rax], r13          ; Store the string's length
         add rax, 8              ; Move the ptr past the string's length

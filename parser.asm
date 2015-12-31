@@ -14,7 +14,7 @@ ParseStmt:
 
         jmp __ParseStmt_INVALID
 __ParseStmt_PRINT:
-        fcall Malloc, SizeOfStmtPrint
+        fcall Alloc, Heap, SizeOfStmtPrint
         mov r12, rax
         mov QWORD [r12+StmtPrint_type], STMT_PRINT
 
@@ -48,7 +48,7 @@ __ParseExpr_MINUS:
         jmp __ParseExpr_BinOp
 __ParseExpr_BinOp:
         fcall EatTok, 0
-        fcall Malloc, SizeOfExprBinOp
+        fcall Alloc, Heap, SizeOfExprBinOp
         mov QWORD [rax+ExprBinOp_type], EXPR_BINARY
         mov [rax+ExprBinOp_op], r15
         mov [rax+ExprBinOp_left], r12
@@ -80,7 +80,7 @@ __ParseTerm_DIVIDE:
         jmp __ParseTerm_BinOp
 __ParseTerm_BinOp:
         fcall EatTok, 0
-        fcall Malloc, SizeOfExprBinOp
+        fcall Alloc, Heap, SizeOfExprBinOp
         mov QWORD [rax+ExprBinOp_type], EXPR_BINARY
         mov [rax+ExprBinOp_op], r15
         mov [rax+ExprBinOp_left], r12
@@ -100,7 +100,7 @@ ParseFactor:
         je __ParseFactor_NUMBER
         jmp __ParseFactor_FAIL
 __ParseFactor_NUMBER:
-        fcall Malloc, SizeOfExprInt
+        fcall Alloc, Heap, SizeOfExprInt
         mov r13, rax
         mov QWORD [r13+ExprInt_type], EXPR_INTEGER
         mov rbx, [r14+Token_data]

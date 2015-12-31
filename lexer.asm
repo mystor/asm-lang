@@ -213,7 +213,12 @@ __ReadTok_TILDE:
 
         ;; Special, Tokens (have data)
 __ReadTok_IDENT:
-        fcall StringBuilder_Addc, rax
+        ;; Create an array, and push rax onto it
+        push rax
+        fcall NewArr, Heap, 8
+        pop r9
+        fcall PushChrArr, rax, r9
+        mov r13, rax
 
 __ReadTok_IDENT_Loop:
         fcall PeekChr
@@ -234,13 +239,16 @@ __ReadTok_IDENT_Loop:
         jmp __ReadTok_IDENT_Done
 
 __ReadTok_IDENT_Read:
-        fcall StringBuilder_Addc, rax
+        fcall PushChrArr, r13, rax
+        mov r13, rax
         fcall EatChr
         jmp __ReadTok_IDENT_Loop
 
 __ReadTok_IDENT_Done:
-        fcall StringBuilder_Done
+        fcall PushChrArr, r13, 0 ; Trailing NUL
+        fcall SealArr, rax
 
+        ;; XXX: cmplit can clobber rax
         cmplit rax, 'PRINT'
         je __ReadTok_PRINT
 
@@ -250,6 +258,8 @@ __ReadTok_PRINT:
 
 __ReadTok_STRING:
         mov r13, rax            ; Store string delimiter
+        fcall NewArr, Heap, 8
+        mov r14, rax
 __ReadTok_STRING_Loop:
         fcall EatChr
         cmp rax, -1             ; EOF
@@ -259,7 +269,8 @@ __ReadTok_STRING_Loop:
         cmp al, 92              ; \ ('\' messes up syntax highlighting)
         je __ReadTok_STRING_ReadEscChr
 
-        fcall StringBuilder_Addc, rax
+        fcall PushChrArr, r14, rax
+        mov r14, rax
         jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_ReadEscChr:
         ;; A \ was read, read in chr after it
@@ -267,10 +278,12 @@ __ReadTok_STRING_ReadEscChr:
         cmp rax, -1             ; EOF
         je __ReadTok_STRING_Fail
 
-        fcall StringBuilder_Addc, rax
+        fcall PushChrArr, r14, rax
+        mov r14, rax
         jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_End:
-        fcall StringBuilder_Done
+        fcall PushChrArr, r14, 0 ; Trailing NUL
+        fcall SealArr, rax
         rettok TOKEN_STRING, rax
 __ReadTok_STRING_Fail:
         Panic 100, 'Unexpected EOF while parsing String', NL
