@@ -2,15 +2,11 @@
 %define NL              10      ; EOL
 
 ;;; System Calls
-%ifidn __OUTPUT_FORMAT__, macho64 ; OSX
-        ;; macho64 requires relative addressing
-        %define SYS_READ        0x2000003
-        %define SYS_WRITE       0x2000004
-
-        %define SYS_EXIT        0x2000001
-%elifidn __OUTPUT_FORMAT__, elf64 ; Linux
+%ifidn __OUTPUT_FORMAT__, elf64 ; Linux
         %define SYS_READ        0
         %define SYS_WRITE       1
+        %define SYS_OPEN        2
+        %define SYS_CLOSE       3
 
         %define SYS_EXIT        60
 
@@ -20,6 +16,36 @@
 %else
         %error "Unsupported Platform"
 %endif
+
+;;; Open Flags
+%define O_RDONLY 0
+%define O_WRONLY 1
+%define O_RDWR 2
+
+%define O_CREAT 0x40
+%define O_EXCL 0x80
+%define O_NOCTTY 0x100
+%define O_TRUNC 0x200
+%define O_APPEND 0x400
+
+;;; Permissions flags
+%define S_IRUSR 0x100           ; Read user
+%define S_IWUSR 0x80            ; Write user
+%define S_IXUSR 0x40            ; Exec user
+%define S_IALLUSR S_IRUSR | S_IWUSR | S_IXUSR
+
+%define	S_IRGRP	(S_IRUSR >> 3)  ; Read grp
+%define	S_IWGRP	(S_IWUSR >> 3)  ; Write grp
+%define	S_IXGRP	(S_IXUSR >> 3)  ; Exec grp
+%define S_IALLGRP S_IRGRP | S_IWGRP | S_IXGRP
+
+%define	S_IROTH	(S_IRGRP >> 3)  ; Read other
+%define	S_IWOTH	(S_IWGRP >> 3)  ; Write other
+%define	S_IXOTH	(S_IXGRP >> 3)  ; Exec other
+%define S_IALLOTH S_IROTH | S_IWOTH | S_IXOTH
+
+;;; Default permissions for an executable
+%define S_EXECUTABLE S_IALLUSR | S_IALLGRP | S_IROTH | S_IXOTH
 
 ;;; Default files
 %define STDIN           0

@@ -30,13 +30,13 @@ __MemCpy_Loop:
         add r13, 1
         sub r14, 1
         jmp __MemCpy_Loop
-
 __MemCpy_Done:
         fnret
 
 ;;; Offsets of the page and remainder properties in heaps
 %define Heap_page 0
 %define Heap_rem 8
+%define Heap_size 16
 
 ;;; A macro for creating a heap's required data
 %macro globl_heap 1
@@ -53,18 +53,20 @@ globl_heap Heap
 ;;; Allocate an 8-byte aligned block of memory with size r12
 Alloc:
         fn r15, r12             ; r15 = heap, r12 = size
-        fcall AlignHeap, r15, 8
+        fcall AlignHeap, r15
         fcall AllocUnal, r15, r12
         fnret rax
 
 ;;; Align the current allocation tip to r12 bytes
 AlignHeap:
-        fn r15, r12             ; r15 = heap, r12 = alignment
+        fn r15                  ; r15 = heap
         mov rax, [r15+Heap_page]
-        div r12                 ; rdx has remainder
-        cmp rdx, 0
+        and rax, !7
+        ;mov rdx, 0
+        ;div r12                 ; rdx has remainder
+        cmp rax, 0
         je __AlignHeap_Aligned
-        sub r12, rdx             ; r12 has align - remainder
+        sub r12, rax             ; r12 has align - remainder
         add [r15+Heap_page], r12 ; Move the page by the right amount
         sub [r15+Heap_rem], r12  ; Remove that amount from remaining space
 __AlignHeap_Aligned:
@@ -116,7 +118,7 @@ Realloc:
         je __Realloc_Recent
 __Realloc_NewAlloc:             ; Cannot re-use old allocation
         cmp r14, r13
-        jl __Realloc_NoChange
+        jle __Realloc_NoChange
         fcall Alloc, r15, r14
         push rax                ; Save the return value of Alloc across the call
         fcall MemCpy, r12, rax, r13
@@ -126,7 +128,7 @@ __Realloc_Recent:               ; Try to re-use old allocation
         mov rax, r14
         sub rax, r13            ; Calculate difference in sizes
         cmp rax, [r15+Heap_rem] ; Check if it's too big to fit (signed)
-        jg __Realloc_NewAlloc
+        jg __Realloc_NewAlloc   ; No point freeing - will need new page
         sub [r15+Heap_rem], rax
         add [r15+Heap_page], rax
 __Realloc_NoChange:
