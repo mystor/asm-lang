@@ -55,14 +55,17 @@
 ;;; Write out a file to FILENAME
 ;;; USAGE: WriteLit FILE 'string','com','pon','ents'
 %macro WriteLit 2+
-        jmp     %%endstr
-    %%str:      db      %2
-    %%endstr:
-        mov     rax,    SYS_WRITE
-        mov     rdi,    %1
-        mov     rsi,    %%str
-        mov     rdx,    %%endstr-%%str
+        section .rodata
+%%str: db %2
+%%len: equ $ - %%str
+        section .text
+        multipush rdi, rsi, rdx
+        mov rax, SYS_WRITE
+        mov rdi, %1
+        mov rsi, %%str
+        mov rdx, %%len
         syscall
+        multipop rdi, rsi, rdx
 %endmacro
 
 ;;; Write out an error message to STDERR
