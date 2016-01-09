@@ -202,6 +202,13 @@ symtab_arr: dq 0
 globl_heap StrTabHeap
 strtab_arr: dq 0
 
+%macro ElfFindLitSymbol 1
+        section .rodata
+%%label: db %1, 0
+        section .text
+        fcall ElfFindSymbol, %%label
+%endmacro
+
         section .text
 ElfInit:
         fn
@@ -216,6 +223,9 @@ ElfInit:
         mov [strtab_arr], rax
 
         fcall ExtendArr, [symtab_arr], ST_entry_size
+        mov [symtab_arr], rax
+        fcall ExtendArr, [strtab_arr], 1 ; First string should have non-zero offset
+        mov [strtab_arr], rax
         fnret
 
 ;;; Write out the standard library
@@ -224,6 +234,18 @@ ElfWriteStd:
         fcall ExtendArr, [text_arr], stdlib.len
         mov [text_arr], rax
         fcall MemCpy, stdlib, rbx, stdlib.len
+
+        ElfFindLitSymbol "std$$PrintNum"
+        mov DWORD [rax+ST_shndx], SHN_Text
+        mov QWORD [rax+ST_value], stdlib.PrintNum
+
+        ElfFindLitSymbol "std$$PrintChr"
+        mov DWORD [rax+ST_shndx], SHN_Text
+        mov QWORD [rax+ST_value], stdlib.PrintChr
+
+        ElfFindLitSymbol "std$$Exit"
+        mov DWORD [rax+ST_shndx], SHN_Text
+        mov QWORD [rax+ST_value], stdlib.Exit
         fnret
 
         section .rodata
@@ -429,6 +451,13 @@ ElfWrite:
 %define OP_MovImmReg 0xb8
 
 section .rodata
+
+stdlib__PrintNum: db "$std_PrintNum", 0
+stdlib__PrintChr: db "$std_PrintChr", 0
+stdlib_syms:
+        dq stdlib.PrintNum, stdlib__PrintNum
+        dq stdlib.PrintChr, stdlib__PrintChr
+.length: equ ($ - stdlib_syms) / 16
 
 ;;; The standard library used by emitted programs
 ;;; Must only use short jumps and loads, as code must be relocatable
