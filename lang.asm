@@ -3,7 +3,6 @@
 %include "io.asm"
 %include "memory.asm"
 %include "string.asm"
-%include "intern.asm"
 
 ;;; Compiler stages
 %include "lexer.asm"
@@ -17,7 +16,8 @@ foo: db "output", 0
 
         section .text
         global _start
-_start: fn
+_start:
+        loadargs
         alloca SizeOfToken
         mov r12, rax
         WriteLit STDOUT, 'Welcome to Lang Compiler!', NL

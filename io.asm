@@ -89,6 +89,27 @@ hex_table:      db      '0123456789abcdef'
 hex_prefix:     db      '0x'
 hex_len:        equ     $ - hex_prefix
 
+%macro NumToBinBuf 1
+        mov rax, %1
+        multipush r8, rdx
+        mov r8, rsp
+        sub rsp, 1
+        mov BYTE [rsp], 0
+%%charloop:
+        sub rsp, 1
+        mov rdx, 0
+        mov r8, 10
+        div r8
+        add rdx, '0'
+        mov [rsp], dl
+        cmp rax, 0
+        je %%done
+        jmp %%charloop
+%%done:
+        mov rax, rsp
+        multipop r8, rdx
+%endmacro
+
 WriteHex:
         fn rax
         mov r8, rsp

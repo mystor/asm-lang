@@ -33,6 +33,19 @@ __MemCpy_Loop:
 __MemCpy_Done:
         fnret
 
+;;; A inefficient byte-by-byte memory set loop
+MemSet:
+        fn r12, r13, r14        ; r12 = val, r13 = dst, r14 = cnt
+__MemSet_Loop:
+        cmp r14, 0
+        je __MemSet_Done
+        mov BYTE [r13], r12b
+        add r13, 1
+        sub r14, 1
+        jmp __MemSet_Loop
+__MemSet_Done:
+        fnret
+
 ;;; Offsets of the page and remainder properties in heaps
 %define Heap_page 0
 %define Heap_rem 8
@@ -78,10 +91,11 @@ AllocUnal:
         cmp r12, [r15+Heap_rem]
         jge __AllocUnal_NewPage
 __AllocUnal_RetPtr:
-        mov rax, [r15+Heap_page]
+        mov r13, [r15+Heap_page]
         sub [r15+Heap_rem], r12
         add [r15+Heap_page], r12
-        fnret rax
+        fcall MemSet, 0, r13, r12
+        fnret r13
 __AllocUnal_NewPage:
         cmp r12, PAGE_SIZE
         jge __AllocUnal_Failure
@@ -131,6 +145,8 @@ __Realloc_Recent:               ; Try to re-use old allocation
         jg __Realloc_NewAlloc   ; No point freeing - will need new page
         sub [r15+Heap_rem], rax
         add [r15+Heap_page], rax
+        lea rbx, [r12+r13]
+        fcall MemSet, 0, rbx, rax
 __Realloc_NoChange:
         fnret r12
 
@@ -227,3 +243,16 @@ SealArr:
         lea rbx, [r12+r13]            ; Get end of useful data
         fcall Free, r15, rbx, rax
         fnret r12
+
+;;; Add bytes to the end of the array such that it is 8-byte aligned
+AlignArr:
+        fn r12
+        mov rax, [r12+Array_len]
+        and rax, 7
+        cmp rax, 0
+        je __AlignArr_Aligned
+        add QWORD [r12+Array_len], 8 ; Can directly modify as will be in bounds
+        sub [r12+Array_len], rax
+__AlignArr_Aligned:
+        fnret r12
+

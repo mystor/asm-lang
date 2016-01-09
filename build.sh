@@ -2,7 +2,9 @@
 
 set -x
 
-if nasm -f elf64 -g -l lang.lst lang.asm -o lang.o; then
+DEBUG_TYPE=stabs # dwarf doesn't seem to be working right now :(
+
+if nasm -g -w+all -f elf64 -F $DEBUG_TYPE -o lang.o lang.asm; then
     if ld -o lang lang.o; then
         if [ "$1" = "--debug" ]; then
             gdb -- ./lang

@@ -1,6 +1,6 @@
 ;;  -*- nasm -*-
 
-section text
+        section .text
 ;;; Get the length of the input string
 StrLen:
         fn r12                  ; r12 = string

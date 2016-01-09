@@ -24,10 +24,10 @@
 
 ;; Function Calling Convention used in this program:
 ;; Registers are used wherever possible.
-;; rax - arg 5, return
-;; rbx - arg 6
-;; rcx - arg 7
-;; rdx - arg 8
+;; rax - return 1
+;; rbx - return 2
+;; rcx - stable local
+;; rdx - stable local
 ;; r8  - arg 1
 ;; r9  - arg 2
 ;; r10 - arg 3
@@ -66,7 +66,7 @@
 
 ;;; Declare a fn
 %macro fn 0
-        multipush rbp, r12, r13, r14, r15
+        multipush rbp, r12, r13, r14, r15, rcx, rdx
         mov rbp, rsp
 %endmacro
 %macro fn 1
@@ -89,7 +89,7 @@
 ;;; Return from a function
 %macro fnret 0
         mov rsp, rbp
-        multipop rbp, r12, r13, r14, r15
+        multipop rbp, r12, r13, r14, r15, rcx, rdx
         ret
 %endmacro
 %macro fnret 1
@@ -165,3 +165,14 @@ Write%[ENAME]:
         fcall StrCmp, %1, %%str
         cmp rax, 0
 %endmacro
+
+        section .data
+argc: dq 0
+argv: dq 0
+
+%macro loadargs 0
+        pop rsi
+        mov [argv], rsi
+        mov [argc], rsp
+%endmacro
+

@@ -1,44 +1,15 @@
 ;;; -*- nasm -*-
 
         section .data
-;%define ELF_hdrO(X) ELF_hdr.%[X] - ELF_hdr
-;ELF_hdr:
-;.ei_mag: db 0x7F, "ELF"
-;.ei_class: db 2                  ; x86 = 1, x86-64 = 2
-;.ei_data: db 1                   ; 1 = little endian, 2 = big endian
-;.ei_version: db 1                ; version 1 of ELF
-;.ei_isabi: db 0                  ; portable object file?
-;.ei_abiversion: db 0             ; (ignored) can be anything
-;.ei_pad: times 7 db 0            ; padding
-;.e_type: dw 2                    ; 1 = relocatable, 2 = executable, 3 = shared, 4 = core
-;.e_machine: dw 0x3E              ; ISA (x86 = 0x03, x86-64 = 0x3E)
-;.e_version: dd 1                 ; version 1 of ELF
-;.e_entry: dq 0x400080            ; Memory address of entry point
-;.e_phoff: dq 64                  ; Program header offset
-;.e_shoff: dq 0                   ; Section header offset (absent)
-;.e_flags: dd 0                   ; Flags
-;.e_ehsize: dw .sizeof            ; Size of this header (64 bytes on x86-64, 52 on x86)
-;.e_phentsize: dw ELF_phdr.sizeof ; Size of a program header table entry
-;.e_phnum: dw 1                   ; Number of entries in program header table
-;.e_shentsize: dw ELF_shdr.sizeof ; Size of a section header entry
-;.e_shnum: dw 0                   ; Number of entries in the section header
-;.e_shstrndx: dw 0                ; Section header table for names index
-;.sizeof: equ $ - ELF_hdr
-
-        ;section .rodata
-;%define ELF_shdrO(X) ELF_shdr.%[X] - ELF_shdr
-;ELF_shdr:
-;.sh_name: dd 0                  ; Section name, index in string tbl
-;.sh_type: dd 0                  ; Miscellaneous section attributes
-;.sh_flags: dq 0                 ; Type of section
-;.sh_addr: dq 0                  ; Section virtual addr at execution
-;.sh_offset: dq 0                ; Section file offset
-;.sh_size: dq 0                  ; Size of section in bytes
-;.sh_link: dd 0                  ; Index of another section
-;.sh_info: dd 0                  ; Additional section information
-;.sh_addralign: dq 0             ; Section alignment
-;.sh_entsize: dq 0               ; Entry size if section holds table
-;.sizeof: equ $ - ELF_shdr
+;ELF_symtab:
+;.offset: equ $ - ELF_prelude
+;.st_name: dd ELF_shstrtab._start
+;.st_info: db STB_LOCAL
+;.st_other: db 0
+;.st_shndx: dw 1
+;.st_value: dq 0xDEADBEEF
+;.st_size: dq 0
+;.length: equ $ - ELF_symtab
 
 ;;; Possible values for p_type
 %define PT_NULL 0
@@ -54,23 +25,35 @@
 %define PF_W 0x2
 %define PF_R 0x4
 
-;%define ELF_phdrO(X) ELF_phdr.%[X] - ELF_phdr
-;ELF_phdr:
-;.p_type: dd PT_LOAD
-;.p_flags: dd PF_X | PF_R
-;.p_offset: dq 0                 ; Segment file offset
-;.p_vaddr: dq 0x400000           ; Segment virtual address
-;.p_paddr: dq 0x400000           ; Segment physical address (unused)
-;.p_filesz: dq prog_len+0x80     ; Segment size in file
-;.p_memsz: dq prog_len+0x80      ; Segment size in memory
-;.p_align: dq 0x200000           ; Segment alignment, file & memory
-;.sizeof: equ $ - ELF_phdr
+;;; Possible values for sh_type
+%define ST_NULL 0
+%define ST_PROGBITS 1
+%define ST_SYMTAB 2
+%define ST_STRTAB 3
+
+;;; Possible values for sh_flags
+%define SF_W 0x1
+%define SF_A 0x2
+%define SF_X 0x4
+
+%define STB_LOCAL 0 << 4
+%define STB_GLOBAL 1 << 4
+
+%define ST_entry_size 0x18
+%define ST_name 0               ; DWORD
+%define ST_info 4               ; BYTE
+%define ST_other 5              ; BYTE
+%define ST_shndx 6              ; DWORD
+%define ST_value 8              ; QWORD
+%define ST_size 16              ; QWORD
 
 %define ELF_hdr_size 64
 %define ELF_phdr_size 56
 %define ELF_shdr_size 64
-
 %define ELF_base_addr 0x400000
+
+%define SHN_Text 1
+%define SHN_Data 2
 
 ELF_prelude:
 .ei_mag: db 0x7F, "ELF"         ; Magic number
@@ -84,16 +67,17 @@ ELF_prelude:
 .e_machine: dw 0x3E             ; ISA (x86 = 0x03, x86-64 = 0x3E)
 .e_version: dd 1                ; version 1 of ELF
 .e_entry: dq 0xDEADBEEF         ; Memory address of entry point
-.e_phoff: dq ELF_hdr_size       ; Program header offset
-.e_shoff: dq 0                  ; Section header offset (absent from executable)
+.e_phoff: dq ELF_phoff          ; Program header offset
+.e_shoff: dq ELF_shoff          ; Section header offset (absent from executable)
 .e_flags: dd 0                  ; Flags
 .e_ehsize: dw ELF_hdr_size      ; Size of this header
 .e_phentsize: dw ELF_phdr_size  ; Size of a program header table entry
 .e_phnum: dw 2                  ; Number of entries in program header table
 .e_shentsize: dw ELF_shdr_size  ; Size of a section header entry
-.e_shnum: dw 0                  ; Number of entries in the section header
-.e_shstrndx: dw 0               ; Section header table for names index
+.e_shnum: dw 6                  ; Number of entries in the section header
+.e_shstrndx: dw 3               ; Section header table for names index
 
+ELF_phoff: equ $ - ELF_prelude
 ELF_text:
 .p_type: dd PT_LOAD
 .p_flags: dd PF_X | PF_R
@@ -114,6 +98,93 @@ ELF_data:
 .p_memsz: dq 0xDEADBEEF         ; Segment size in memory
 .p_align: dq 0x200000           ; Segment alignment, file & memory
 
+ELF_shoff: equ $ - ELF_prelude
+ELF_snull:
+.sh_name: dd 0                   ; Section name, index in string tbl
+.sh_type: dd 0                   ; Miscellaneous section attributes
+.sh_flags: dq 0                  ; Type of section
+.sh_addr: dq 0                   ; Section virtual addr at execution
+.sh_offset: dq 0                 ; Section file offset
+.sh_size: dq 0                   ; Size of section in bytes
+.sh_link: dd 0                   ; Index of another section
+.sh_info: dd 0                   ; Additional section information
+.sh_addralign: dq 0              ; Section alignment
+.sh_entsize: dq 0                ; Entry size if section holds table
+
+ELF_stext:
+.sh_name: dd ELF_shstrtab.text  ; Section name, index in string tbl
+.sh_type: dd ST_PROGBITS        ; Miscellaneous section attributes
+.sh_flags: dq SF_X | SF_A       ; Type of section
+.sh_addr: dq ELF_text_start     ; Section virtual addr at execution
+.sh_offset: dq ELF_prelude_size ; Section file offset
+.sh_size: dq 0xDEADBEEF         ; Size of section in bytes
+.sh_link: dd 0                  ; Index of another section
+.sh_info: dd 0                  ; Additional section information
+.sh_addralign: dq 0x200000      ; Section alignment
+.sh_entsize: dq 0               ; Entry size if section holds table
+
+ELF_sdata:
+.sh_name: dd ELF_shstrtab.data  ; Section name, index in string tbl
+.sh_type: dd ST_PROGBITS        ; Miscellaneous section attributes
+.sh_flags: dq SF_W | SF_A       ; Type of section
+.sh_addr: dq 0xDEADBEEF         ; Section virtual addr at execution
+.sh_offset: dq 0xDEADBEEF       ; Section file offset
+.sh_size: dq 0xDEADBEEF         ; Size of section in bytes
+.sh_link: dd 0                  ; Index of another section
+.sh_info: dd 0                  ; Additional section information
+.sh_addralign: dq 0x200000      ; Section alignment
+.sh_entsize: dq 0               ; Entry size if section holds table
+
+ELF_sshstrtab:
+.sh_name: dd ELF_shstrtab.shstrtab ; Section name, index in string tbl
+.sh_type: dd ST_STRTAB             ; Miscellaneous section attributes
+.sh_flags: dq 0                    ; Type of section
+.sh_addr: dq 0                     ; Section virtual addr at execution
+.sh_offset: dq ELF_shstrtab.offset ; Section file offset
+.sh_size: dq ELF_shstrtab.length   ; Size of section in bytes
+.sh_link: dd 0                     ; Index of another section
+.sh_info: dd 0                     ; Additional section information
+.sh_addralign: dq 0x200000         ; Section alignment
+.sh_entsize: dq 0                  ; Entry size if section holds table
+
+ELF_ssymtab:
+.sh_name: dd ELF_shstrtab.symtab  ; Section name, index in string tbl
+.sh_type: dd ST_SYMTAB            ; Miscellaneous section attributes
+.sh_flags: dq 0                   ; Type of section
+.sh_addr: dq 0                    ; Section virtual addr at execution
+.sh_offset: dq 0xDEADBEEF         ; Section file offset
+.sh_size: dq 0xDEADBEEF           ; Size of section in bytes
+.sh_link: dd 5                    ; Index of another section
+.sh_info: dd 0                    ; Additional section information
+.sh_addralign: dq 0x200000        ; Section alignment
+.sh_entsize: dq ST_entry_size     ; Entry size if section holds table
+
+ELF_sstrtab:
+.sh_name: dd ELF_shstrtab.strtab ; Section name, index in string tbl
+.sh_type: dd ST_STRTAB           ; Miscellaneous section attributes
+.sh_flags: dq 0                  ; Type of section
+.sh_addr: dq 0                   ; Section virtual addr at execution
+.sh_offset: dq 0xDEADBEEF        ; Section file offset
+.sh_size: dq 0xDEADBEEF          ; Size of section in bytes
+.sh_link: dd 0                   ; Index of another section
+.sh_info: dd 0                   ; Additional section information
+.sh_addralign: dq 0x200000       ; Section alignment
+.sh_entsize: dq 0                ; Entry size if section holds table
+
+ELF_shstrtab:
+.offset: equ $ - ELF_prelude
+.data: equ $ - ELF_shstrtab
+        db ".data", 0
+.text: equ $ - ELF_shstrtab
+        db ".text", 0
+.shstrtab: equ $ - ELF_shstrtab
+        db ".shstrtab", 0
+.symtab: equ $ - ELF_shstrtab
+        db ".symtab", 0
+.strtab: equ $ - ELF_shstrtab
+        db ".strtab", 0
+.length: equ $ - ELF_shstrtab
+
 ELF_prelude_size: equ $ - ELF_prelude
 
 ;;; The memory location where the first instruction occurs
@@ -126,6 +197,10 @@ globl_heap TextHeap
 text_arr: dq 0
 globl_heap DataHeap
 data_arr: dq 0
+globl_heap SymTabHeap
+symtab_arr: dq 0
+globl_heap StrTabHeap
+strtab_arr: dq 0
 
         section .text
 ElfInit:
@@ -135,6 +210,12 @@ ElfInit:
         mov [text_arr], rax
         fcall NewArr, DataHeap, 2048
         mov [data_arr], rax
+        fcall NewArr, SymTabHeap, 2048
+        mov [symtab_arr], rax
+        fcall NewArr, StrTabHeap, 2048
+        mov [strtab_arr], rax
+
+        fcall ExtendArr, [symtab_arr], ST_entry_size
         fnret
 
 ;;; Write out the standard library
@@ -145,44 +226,148 @@ ElfWriteStd:
         fcall MemCpy, stdlib, rbx, stdlib.len
         fnret
 
+        section .rodata
+StartSymbol: db "_start", 0
+        section .text
 ElfSetStart:
         fn
         mov rax, [text_arr]
-        mov rbx, [rax+Array_len]
-        add rbx, ELF_text_start
-        mov [ELF_prelude.e_entry], rbx
+        mov r12, [rax+Array_len]
+        add r12, ELF_text_start
+        mov [ELF_prelude.e_entry], r12
+
+        fcall ElfFindSymbol, StartSymbol
+        mov DWORD [rax+ST_shndx], SHN_Text
+        mov QWORD [rax+ST_value], r12
         fnret
 
+ElfFindSymbol:
+        fn r12                  ; r12 = symbol name
+        mov r13, [symtab_arr]   ; r13 = symbol table
+        mov r14, [strtab_arr]   ; r14 = string table
+        mov rcx, 0
+        mov rdx, [r13+Array_len]
+
+__ElfFindSymbol_Search:
+        cmp rcx, rdx
+        jae __ElfFindSymbol_Absent
+
+        mov eax, [r13+rcx+ST_name] ; Get the name offset
+        lea rax, [r14+rax]         ; Get a pointer to the actual string
+        fcall StrCmp, rax, r12
+        cmp rax, 0
+        je __ElfFindSymbol_Found
+
+        add rcx, ST_entry_size
+        jmp __ElfFindSymbol_Search
+__ElfFindSymbol_Absent:
+        fcall StrLen, r12       ; Allocate space for the name
+        lea rcx, [rax+1]        ; Space for the nil
+        fcall ExtendArr, r14, rcx
+        mov r14, rax
+        mov [strtab_arr], r14
+        mov rdx, rbx
+        fcall MemCpy, r12, rdx, rcx ; Copy the data over
+        sub rdx, r14            ; r14 is index in string array
+        mov r14, rdx
+
+        fcall ExtendArr, r13, ST_entry_size ; Allocate space for symbol
+        mov r13, rax
+        mov [symtab_arr], r13
+        mov DWORD [rbx+ST_name], r14d
+        fnret rbx
+__ElfFindSymbol_Found:
+        fnret rcx
+
+        section .data
+SymbolMonotonic: dq 0
+
+        section .text
+;;; Generate a unique symbol!?!?!?!?!?!?!?
+ElfUniqueSymbol:
+        fn r12                  ; r12 = symbol name hint
+        ;; Increment the symbol monotonic
+        NumToBinBuf [SymbolMonotonic]
+        inc QWORD [SymbolMonotonic]
+
+        ;; Get the length of the symbol monotonic number
+        mov rdx, rbp
+        sub rdx, rsp
+        dec rdx                 ; Exclude nil
+
+        ;; Load into array
+        fcall ExtendArr, [strtab_arr], rdx
+        mov [strtab_arr], rax
+        mov r14, rbx            ; r14 = offset of string
+        sub r14, rax
+        fcall MemCpy, rsp, rbx, rdx
+
+        ;; Also bring in the base, but include nil this time
+        fcall StrLen, r12       ; Copy in the symbol name hint
+        lea rdx, [rax+1]        ; Include nil
+        fcall ExtendArr, [strtab_arr], rdx
+        mov [strtab_arr], rax
+        fcall MemCpy, r12, rbx, rdx
+
+        ;; Create the symbol table
+        fcall ExtendArr, [symtab_arr], ST_entry_size
+        mov [symtab_arr], rax
+        mov DWORD [rbx+ST_name], r14d
+        fnret rbx
+
+;;; XXX: Testing program
 ElfWriteProg:
         fn
-
         fcall ExtendArr, [text_arr], testing123_len
         mov [text_arr], rax
         fcall MemCpy, testing123, rbx, testing123_len
-
         fnret
 
 ;;; Finalize the current elf setup, filling in the headers with accurate data
 ElfFinalize:
         fn
-
         ;; Copy over the correct lengths
-        mov rbx, [text_arr]
-        mov rax, [rbx+Array_len]
+        mov r12, [text_arr]     ; text
+        fcall AlignArr, r12
+        mov rax, [r12+Array_len]
         mov [ELF_text.p_filesz], rax
         mov [ELF_text.p_memsz], rax
-        mov rbx, [data_arr]
-        mov rax, [rbx+Array_len]
+        mov [ELF_stext.sh_size], rax
+
+        mov r12, [data_arr]     ; data
+        fcall AlignArr, r12
+        mov rax, [r12+Array_len]
         mov [ELF_data.p_filesz], rax
         mov [ELF_data.p_memsz], rax
+        mov [ELF_sdata.sh_size], rax
 
-        ;; Determine data start point, and address
-        mov rax, [ELF_text.p_offset]
-        add rax, [ELF_text.p_filesz]
+        mov r12, [symtab_arr]   ; symtab
+        fcall AlignArr, r12
+        mov rax, [r12+Array_len]
+        mov [ELF_ssymtab.sh_size], rax
+
+        mov r12, [strtab_arr]   ; strtab
+        fcall AlignArr, r12
+        mov rax, [r12+Array_len]
+        mov [ELF_sstrtab.sh_size], rax
+
+        ;; Setup start point and offsets
+        mov rax, [ELF_stext.sh_offset] ; data
+        add rax, [ELF_stext.sh_size]
         mov [ELF_data.p_offset], rax
+        mov [ELF_sdata.sh_offset], rax
         add rax, ELF_base_addr
         mov [ELF_data.p_vaddr], rax
         mov [ELF_data.p_paddr], rax
+        mov [ELF_sdata.sh_addr], rax
+
+        mov rax, [ELF_sdata.sh_offset] ; symtab
+        add rax, [ELF_sdata.sh_size]
+        mov [ELF_ssymtab.sh_offset], rax
+
+        mov rax, [ELF_ssymtab.sh_offset] ; strtab
+        add rax, [ELF_ssymtab.sh_size]
+        mov [ELF_sstrtab.sh_offset], rax
         fnret
 
 ElfWrite:
@@ -209,6 +394,20 @@ ElfWrite:
         mov rsi, [data_arr]
         mov rdx, [ELF_data.p_filesz]
         syscall
+
+        ;; Write out the symtab
+        mov rax, SYS_WRITE
+        mov rdi, r12
+        mov rsi, [symtab_arr]
+        mov rdx, [ELF_ssymtab.sh_size]
+        syscall
+
+        ;; Write out the strtab
+        mov rax, SYS_WRITE
+        mov rdi, r12
+        mov rsi, [strtab_arr]
+        mov rdx, [ELF_sstrtab.sh_size]
+        syscall
         fnret
 
 %define REX_BASE 0b01000000
@@ -230,6 +429,7 @@ ElfWrite:
 %define OP_MovImmReg 0xb8
 
 section .rodata
+
 ;;; The standard library used by emitted programs
 ;;; Must only use short jumps and loads, as code must be relocatable
 ;;; Into the binary.
