@@ -35,13 +35,11 @@ _start:
         fcall ElfWriteProg
         fcall ElfWrite, r15
 
-        ;fcall WriteBasicElf, r15
-
         mov rax, SYS_CLOSE
         mov rdi, r15
         syscall
 
-        Panic 0, "DONE"
+        Panic 0, "DONE", NL
 
 .ParsePrintStmt:
         fcall PeekTok, r12
