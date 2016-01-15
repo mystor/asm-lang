@@ -386,71 +386,124 @@ MkBinOp:
         mov [r15+ExprBinOp_op], r13
         fnret r15
 
+;;; name, nextlvl
+%macro start_bopreclvl 2
+        %push bopreclvl
+%$lower:
+        fcall %2
+        ret
+%1:
+        fn
+        call %$lower
+        mov r12, rax
+%$loop:
+        fcall PeekTokType
+%endmacro
+%macro binop 2
+        cmp rax, %1
+        je %%eq
+        jmp %%after
+%%eq:
+        fcall Expect, %1
+        fcall MkBinOp, r12, %2
+        jmp %$rhs
+%%after:
+%endmacro
+%macro end_bopreclvl 0
+        fnret r12
+%$rhs:
+        mov r12, rax
+        call %$lower
+        mov [r12+ExprBinOp_right], rax
+        jmp %$loop
+        %pop bopreclvl
+%endmacro
+
+start_bopreclvl ParseCommaExpr, ParseExpr
+        binop TOKEN_COMMA, OP_ANDTHEN
+end_bopreclvl
+
 ParseExpr:
         fn
-        fnret
+        fcall ParseAssign
+        fnret rax
 
-ParseFactor:
-        fn
-        fcall ParseTerm
-        mov r12, rax
-.loop:
-        fcall PeekTokType
-        cmp rax, TOKEN_PLUS
-        je .plus
-        cmp rax, TOKEN_DASH
-        je .minus
-        fnret r12
-.plus:
-        fcall Expect, TOKEN_PLUS
-        fcall MkBinOp, r12, OP_PLUS
-        jmp .rhs
-.minus:
-        fcall Expect, TOKEN_DASH
-        fcall MkBinOp, r12, OP_MINUS
-        jmp .rhs
-.rhs:
-        mov r12, rax
-        fcall ParseTerm
-        mov [r12+ExprBinOp_right], rax
-        jmp .loop
+start_bopreclvl ParseAssign, ParseTernary
+        binop TOKEN_EQ, OP_ASSIGN
+        binop TOKEN_PLUSEQ, OP_ADDASSIGN
+        binop TOKEN_DASHEQ, OP_SUBASSIGN
+        binop TOKEN_STAREQ, OP_MULASSIGN
+        binop TOKEN_SLASHEQ, OP_DIVASSIGN
+        binop TOKEN_MODULOEQ, OP_MODASSIGN
+        binop TOKEN_LTLTEQ, OP_BSLASSIGN
+        binop TOKEN_GTGTEQ, OP_BSRASSIGN
+        binop TOKEN_ANDEQ, OP_BANDASSIGN
+        binop TOKEN_CARETEQ, OP_BXORASSIGN
+        binop TOKEN_BAREQ, OP_BORASSIGN
+end_bopreclvl
 
-ParseTerm:
+ParseTernary:
         fn
-        fcall ParsePrefix
+        fcall ParseOr
         mov r12, rax
-.loop:
-        fcall PeekTokType
-        cmp rax, TOKEN_STAR
-        je .mul
-        cmp rax, TOKEN_SLASH
-        je .div
-        cmp rax, TOKEN_MODULO
-        je .mod
+        ;; XXX: Implement the ternary operator!
         fnret r12
-.mul:
-        fcall Expect, TOKEN_STAR
-        fcall MkBinOp, r12, OP_MUL
-        jmp .rhs
-.div:
-        fcall Expect, TOKEN_SLASH
-        fcall MkBinOp, r12, OP_DIV
-        jmp .rhs
-.mod:
-        fcall Expect, TOKEN_MODULO
-        fcall MkBinOp, r12, OP_MOD
-        jmp .rhs
-.rhs:
-        mov r12, rax
-        fcall ParsePrefix
-        mov [r12+ExprBinOp_right], rax
-        jmp .loop
+
+start_bopreclvl ParseOr, ParseAnd
+        binop TOKEN_BARBAR, OP_OR
+end_bopreclvl
+
+start_bopreclvl ParseAnd, ParseBor
+        binop TOKEN_ANDAND, OP_AND
+end_bopreclvl
+
+start_bopreclvl ParseBor, ParseBxor
+        binop TOKEN_BAR, OP_BOR
+end_bopreclvl
+
+start_bopreclvl ParseBxor, ParseBand
+        binop TOKEN_CARET, OP_BXOR
+end_bopreclvl
+
+start_bopreclvl ParseBand, ParseEquality
+        binop TOKEN_AND, OP_BAND
+end_bopreclvl
+
+start_bopreclvl ParseEquality, ParseCompare
+        binop TOKEN_EQEQ, OP_EQ
+        binop TOKEN_NOTEQ, OP_NE
+end_bopreclvl
+
+start_bopreclvl ParseCompare, ParseBitShift
+        binop TOKEN_LT, OP_LT
+        binop TOKEN_GT, OP_GT
+        binop TOKEN_LTEQ, OP_LTE
+        binop TOKEN_GTEQ, OP_GTE
+end_bopreclvl
+
+start_bopreclvl ParseBitShift, ParseArith
+        binop TOKEN_LTLT, OP_BSL
+        binop TOKEN_GTGT, OP_BSR
+end_bopreclvl
+
+start_bopreclvl ParseArith, ParseTerm
+        binop TOKEN_PLUS, OP_PLUS
+        binop TOKEN_DASH, OP_MINUS
+end_bopreclvl
+
+start_bopreclvl ParseTerm, ParsePrefix
+        binop TOKEN_STAR, OP_MUL
+        binop TOKEN_SLASH, OP_DIV
+        binop TOKEN_MODULO, OP_MOD
+end_bopreclvl
 
 ParsePrefix:
         fn
         fcall PeekTokType
         cmp rax, TOKEN_STAR
         je .deref
+        cmp rax, TOKEN_AND
+        je .addrof
         cmp rax, TOKEN_DASH
         je .negate
         cmp rax, TOKEN_TILDE
@@ -469,6 +522,16 @@ ParsePrefix:
         mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_DEREF
         fcall ParsePrefix       ; Recurse to allow mult derefs
+        mov [r12+ExprUnOp_target], rax
+        fnret r12
+
+.addrof:
+        fcall Expect, TOKEN_AND
+        fcall Alloc, Heap, SizeOfExprUnOp
+        mov r12, rax
+        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_op], UNOP_ADDROF
+        fcall ParsePrefix
         mov [r12+ExprUnOp_target], rax
         fnret r12
 
@@ -599,11 +662,11 @@ ParseAtom:
         fn
         fcall PeekTokType
         cmp rax, TOKEN_NUMBER
-        jmp .integer
+        je .integer
         cmp rax, TOKEN_SIZEOF
-        jmp .sizeof
+        je .sizeof
         cmp rax, TOKEN_IDENT
-        jmp .ref
+        je .ref
         Panic 101, 'Unrecognized Atom Starter', NL
 
 .integer:

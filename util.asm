@@ -145,7 +145,6 @@ Write%[ENAME]:
         %endrep
 %endmacro
 
-
 ;;; Structs
 %macro struct 1
         %assign offset 0

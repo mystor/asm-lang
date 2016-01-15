@@ -122,6 +122,18 @@ enum OP
         opt NE
         opt AND
         opt OR
+        opt ASSIGN
+        opt ADDASSIGN
+        opt SUBASSIGN
+        opt MULASSIGN
+        opt DIVASSIGN
+        opt MODASSIGN
+        opt BSLASSIGN
+        opt BSRASSIGN
+        opt BANDASSIGN
+        opt BXORASSIGN
+        opt BORASSIGN
+        opt ANDTHEN
 endenum
 
 struct ExprBinOp
@@ -134,6 +146,7 @@ endstruct
 enum UNOP
         opt NEGATE
         opt DEREF
+        opt ADDROF
         opt BNOT
         opt NOT
 endenum
@@ -226,18 +239,18 @@ WriteItem:
         fcall WriteStr, [r12+ItemFunc_name]
         WriteLit STDOUT, '('
         mov r13, [r12+ItemFunc_params]
-        mov r14, [r13+Array_len]
+        mov r14, 0
 ._ITEM_FUNC_paramsloop:
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._ITEM_FUNC_paramsloopdone
-        sub r14, 8
         mov r15, [r13+r14]
         fcall WriteType, [r15+Param_typeof]
         WriteLit STDOUT, ' '
         fcall WriteStr, [r15+Param_name]
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._ITEM_FUNC_paramsloopdone
         WriteLit STDOUT, ', '
+        add r14, 8
         jmp ._ITEM_FUNC_paramsloop
 ._ITEM_FUNC_paramsloopdone:
         WriteLit STDOUT, ')', NL
@@ -250,17 +263,17 @@ WriteItem:
         fcall WriteStr, [r12+ItemStruct_name]
         WriteLit STDOUT, ' {', NL
         mov r13, [r12+ItemStruct_fields]
-        mov r14, [r13+Array_len]
+        mov r14, 0
 ._ITEM_STRUCT_fieldsloop:
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._ITEM_STRUCT_fieldsloopdone
-        sub r14, 8
         mov r15, [r13+r14]
         WriteLit STDOUT, '    '
         fcall WriteType, [r15+Field_typeof]
         WriteLit STDOUT, ' '
         fcall WriteStr, [r15+Field_name]
         WriteLit STDOUT, ';', NL
+        add r14, 8
         jmp ._ITEM_STRUCT_fieldsloop
 ._ITEM_STRUCT_fieldsloopdone:
         WriteLit STDOUT, '};', NL
@@ -285,7 +298,9 @@ WriteExpr:
 .EXPR_BINARY:
         WriteLit STDOUT, '('
         fcall WriteExpr, [r12+ExprBinOp_left]
+        WriteLit STDOUT, ' '
         fcall WriteOP, [r12+ExprBinOp_op]
+        WriteLit STDOUT, ' '
         fcall WriteExpr, [r12+ExprBinOp_right]
         WriteLit STDOUT, ')'
         fnret
@@ -301,18 +316,18 @@ WriteExpr:
         fcall WriteExpr, [r12+ExprCall_target]
         WriteLit STDOUT, '('
         mov r13, [r12+ExprCall_args]
-        mov r14, [r13+Array_len]
+        mov r14, 0
 ._EXPR_CALL_argsloop:
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._EXPR_CALL_afterargs
-        sub r14, 8
         mov r15, [r13+r14]
         fcall WriteType, [r15+Argument_typeof]
         WriteLit STDOUT, ' '
         fcall WriteStr, [r15+Argument_name]
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._EXPR_CALL_afterargs
         WriteLit STDOUT, ', '
+        add r14, 8
         jmp ._EXPR_CALL_argsloop
 ._EXPR_CALL_afterargs:
         WriteLit STDOUT, ')'
@@ -402,13 +417,13 @@ WriteStmt:
 .STMT_COMPOUND:
         WriteLit STDOUT, '{', NL
         mov r13, [r12+StmtCompound_stmts]
-        mov r14, [r13+Array_len]
+        mov r14, 0
 ._STMT_COMPOUND_stmtloop:
-        cmp r14, 0
+        cmp r14, [r13+Array_len]
         je ._STMT_COMPOUND_stmtloopdone
-        sub r14, 8
         fcall WriteStmt, [r13+r14]
         WriteLit STDOUT, NL
+        add r14, 8
         jmp ._STMT_COMPOUND_stmtloop
 ._STMT_COMPOUND_stmtloopdone:
         WriteLit STDOUT, '}'
@@ -436,7 +451,9 @@ WriteType:
         WriteLit STDOUT, 'u'
         jmp ._TYPE_INT_AFTERSIGN
 ._TYPE_INT_AFTERSIGN:
-        fcall WriteDec, [r12+TypeInt_size]
+        mov rax, [r12+TypeInt_size]
+        shl rax, 3              ; * 8
+        fcall WriteDec, rax
         fnret
 
 .TYPE_STRUCT:

@@ -196,7 +196,8 @@ ExtendArr:
         mov rax, [r12+Array_len]
         add rax, r13
         cmp rax, [r12+Array_cap]
-        jg __ExtendArr_Resize   ; Intentionally signed (so can ExtendArr negative)
+        jg __ExtendArr_Resize   ; Intentionally signed
+                                ; (so can ExtendArr negative)
 __ExtendArr_Fits:
         mov rax, [r12+Array_len]
         lea rbx, [r12+rax]      ; Index of new array elt in rbx
@@ -207,9 +208,12 @@ __ExtendArr_Resize:
         mov rax, [r12+Array_heap]     ; Target Heap
         lea rbx, [r12-Array_HeadSize] ; Allocation Pointer
         mov rcx, [r12+Array_cap]      ; Old Capacity
+        add rcx, Array_HeadSize
         lea r15, [rcx*2]              ; New Capacity
+        add r15, Array_HeadSize
         fcall Realloc, rax, rbx, rcx, r15
-        mov r12, rax
+        lea r12, [rax+Array_HeadSize]
+        sub r15, Array_HeadSize
         mov [r12+Array_cap], r15 ; Update capacity!
         jmp __ExtendArr_Fits
 

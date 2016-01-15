@@ -33,6 +33,25 @@ enum TOKEN
         opt TILDE
 
         opt ARROW               ; ->
+        opt ANDAND
+        opt BARBAR
+        opt LTEQ
+        opt GTEQ
+        opt EQEQ
+        opt LTLT
+        opt GTGT
+        opt NOTEQ
+
+        opt PLUSEQ
+        opt DASHEQ
+        opt STAREQ
+        opt SLASHEQ
+        opt MODULOEQ
+        opt LTLTEQ
+        opt GTGTEQ
+        opt ANDEQ
+        opt CARETEQ
+        opt BAREQ
 
         ;; Keywords
         opt IF
@@ -185,49 +204,152 @@ __ReadTok_RBRACKET:
 
         ;; Symbols
 __ReadTok_NOT:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_NOTEQ
         rettok TOKEN_NOT
+__ReadTok_NOTEQ:
+        rettok TOKEN_NOTEQ
 __ReadTok_HASH:
         rettok TOKEN_HASH
 __ReadTok_MODULO:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_MODULOEQ
         rettok TOKEN_MODULO
+__ReadTok_MODULOEQ:
+        fcall EatChr
+        rettok TOKEN_MODULOEQ
 __ReadTok_AND:
+        fcall PeekChr
+        cmp rax, '&'
+        je __ReadTok_ANDAND
+        cmp rax, '='
+        je __ReadTok_ANDEQ
         rettok TOKEN_AND
+__ReadTok_ANDAND:
+        fcall EatChr
+        rettok TOKEN_ANDAND
+__ReadTok_ANDEQ:
+        fcall EatChr
+        rettok TOKEN_ANDEQ
 __ReadTok_STAR:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_STAREQ
         rettok TOKEN_STAR
+__ReadTok_STAREQ:
+        fcall EatChr
+        rettok TOKEN_STAREQ
 __ReadTok_PLUS:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_PLUSEQ
         rettok TOKEN_PLUS
+__ReadTok_PLUSEQ:
+        fcall PeekChr
+        rettok TOKEN_PLUSEQ
 __ReadTok_DASH:
         fcall PeekChr
         cmp rax, '>'
         je __ReadTok_ARROW
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_DASHEQ
         rettok TOKEN_DASH
 __ReadTok_ARROW:
         fcall EatChr
         rettok TOKEN_DASH
+__ReadTok_DASHEQ:
+        fcall EatChr
+        rettok TOKEN_DASHEQ
 __ReadTok_DOT:
         rettok TOKEN_DOT
 __ReadTok_COMMA:
         rettok TOKEN_COMMA
 __ReadTok_SLASH:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_SLASHEQ
         rettok TOKEN_SLASH
+__ReadTok_SLASHEQ:
+        fcall EatChr
+        rettok TOKEN_SLASHEQ
 __ReadTok_COLON:
         rettok TOKEN_COLON
 __ReadTok_SEMI:
         rettok TOKEN_SEMI
 __ReadTok_LT:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_LTEQ
+        cmp rax, '<'
+        je __ReadTok_LTLT
         rettok TOKEN_LT
+__ReadTok_LTEQ:
+        fcall EatChr
+        rettok TOKEN_LTEQ
+__ReadTok_LTLT:
+        fcall EatChr
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_LTLTEQ
+        rettok TOKEN_LTLT
+__ReadTok_LTLTEQ:
+        fcall EatChr
+        rettok TOKEN_LTLTEQ
 __ReadTok_EQ:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_EQEQ
         rettok TOKEN_EQ
+__ReadTok_EQEQ:
+        fcall EatChr
+        rettok TOKEN_EQEQ
 __ReadTok_GT:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_GTEQ
+        cmp rax, '>'
+        je __ReadTok_GTGT
         rettok TOKEN_GT
+__ReadTok_GTEQ:
+        fcall EatChr
+        rettok TOKEN_GTEQ
+__ReadTok_GTGT:
+        fcall EatChr
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_GTGTEQ
+        rettok TOKEN_GTGT
+__ReadTok_GTGTEQ:
+        fcall EatChr
+        rettok TOKEN_GTGTEQ
 __ReadTok_QMARK:
         rettok TOKEN_QMARK
 __ReadTok_AT:
         rettok TOKEN_AT
 __ReadTok_CARET:
+        fcall PeekChr
+        cmp rax, '='
+        je __ReadTok_CARETEQ
         rettok TOKEN_CARET
+__ReadTok_CARETEQ:
+        fcall EatChr
+        rettok TOKEN_CARETEQ
 __ReadTok_BAR:
+        fcall PeekChr
+        cmp rax, '|'
+        je __ReadTok_BARBAR
+        cmp rax, '='
+        je __ReadTok_BAREQ
         rettok TOKEN_BAR
+__ReadTok_BARBAR:
+        fcall EatChr
+        rettok TOKEN_BARBAR
+__ReadTok_BAREQ:
+        fcall EatChr
+        rettok TOKEN_BAREQ
 __ReadTok_TILDE:
         rettok TOKEN_TILDE
 
@@ -268,6 +390,10 @@ __ReadTok_IDENT_Done:
         fcall PushChrArr, r13, 0 ; Trailing NUL
         fcall SealArr, rax
         mov r13, rax
+
+        ;WriteLit STDOUT, NL
+        ;fcall WriteStr, r13
+        ;WriteLit STDOUT, NL
 
         ;; Check for matches with keywords
 %macro kwtok 2
@@ -398,5 +524,7 @@ PeekTokType:
 EatTok:
         fn r12                  ; r12 = OUT token
         fcall PeekTok, r12
+        ;fcall WriteTOKEN, [r12]
+        ;WriteLit STDOUT, NL
         fcall ReadTok, tok_cache
         fnret

@@ -59,13 +59,13 @@
 %%str: db %2
 %%len: equ $ - %%str
         section .text
-        multipush rdi, rsi, rdx
+        multipush rbp, r12, r13, r14, r15, rcx, rdx
         mov rax, SYS_WRITE
         mov rdi, %1
         mov rsi, %%str
         mov rdx, %%len
         syscall
-        multipop rdi, rsi, rdx
+        multipop rbp, r12, r13, r14, r15, rcx, rdx
 %endmacro
 
 ;;; Write out an error message to STDERR
