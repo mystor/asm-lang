@@ -32,13 +32,26 @@ enum TOKEN
         opt BAR
         opt TILDE
 
+        opt ARROW               ; ->
+
         ;; Keywords
-        opt PRINT
+        opt IF
+        opt ELSE
+        opt WHILE
+        opt STRUCT
+        opt UNSIGNED
+        opt SHORT
+        opt LONG
+        opt INT
+        opt CHAR
+        opt VOID
+        opt RETURN
+        opt SIZEOF
 
         ;; Special, Tokens (have data)
         opt IDENT
         opt STRING
-        opt NUMBER
+        opt NUMBER              ; XXX: Only integer
 
         ;; Special Cases
         opt EOF
@@ -59,6 +72,7 @@ endstruct
 
         section .data
 chr_cache:      dq      -2
+chr_infile: dq STDIN
 
         section .text
 PeekChr:
@@ -68,7 +82,7 @@ PeekChr:
 __PeekChr_CacheHit:
         fnret [chr_cache]
 __PeekChr_CacheMiss:
-        fcall GetChr, STDIN
+        fcall GetChr, [chr_infile]
         mov [chr_cache], rax
         fnret rax
 
@@ -79,7 +93,7 @@ EatChr:
         mov r12, rax
         cmp QWORD [chr_cache], -1
         je __EatChr_Done
-        fcall GetChr, STDIN
+        fcall GetChr, [chr_infile]
         mov [chr_cache], rax
 __EatChr_Done:
         fnret r12
@@ -183,6 +197,12 @@ __ReadTok_STAR:
 __ReadTok_PLUS:
         rettok TOKEN_PLUS
 __ReadTok_DASH:
+        fcall PeekChr
+        cmp rax, '>'
+        je __ReadTok_ARROW
+        rettok TOKEN_DASH
+__ReadTok_ARROW:
+        fcall EatChr
         rettok TOKEN_DASH
 __ReadTok_DOT:
         rettok TOKEN_DOT
@@ -247,14 +267,31 @@ __ReadTok_IDENT_Read:
 __ReadTok_IDENT_Done:
         fcall PushChrArr, r13, 0 ; Trailing NUL
         fcall SealArr, rax
+        mov r13, rax
 
-        ;; XXX: cmplit can clobber rax
-        cmplit rax, 'PRINT'
-        je __ReadTok_PRINT
-
-        rettok TOKEN_IDENT, rax
-__ReadTok_PRINT:
-        rettok TOKEN_PRINT
+        ;; Check for matches with keywords
+%macro kwtok 2
+        cmplit r13, %1
+        je %%match
+        jmp %%after
+%%match:
+        rettok %2
+%%after:
+%endmacro
+        kwtok 'if', TOKEN_IF
+        kwtok 'else', TOKEN_ELSE
+        kwtok 'while', TOKEN_WHILE
+        kwtok 'struct', TOKEN_STRUCT
+        kwtok 'unsigned', TOKEN_UNSIGNED
+        kwtok 'short', TOKEN_SHORT
+        kwtok 'long', TOKEN_LONG
+        kwtok 'int', TOKEN_INT
+        kwtok 'char', TOKEN_CHAR
+        kwtok 'void', TOKEN_VOID
+        kwtok 'return', TOKEN_RETURN
+        kwtok 'sizeof', TOKEN_SIZEOF
+%undef kwtok
+        rettok TOKEN_IDENT, r13
 
 __ReadTok_STRING:
         mov r13, rax            ; Store string delimiter
@@ -350,6 +387,13 @@ PeekTok:
         fcall Token_copy, tok_cache, r12
 .Exit:
         fnret
+
+PeekTokType:
+        fn
+        alloca SizeOfToken
+        mov r13, rax
+        fcall PeekTok, r13
+        fnret [r13+Token_type]
 
 EatTok:
         fn r12                  ; r12 = OUT token

@@ -110,10 +110,12 @@
 %endmacro
 %macro opt 1
         %xdefine %[ENAME]_%1 cnt
+        %define %[ENAME]_%[cnt]_ID %1
         %defstr %[ENAME]_%[cnt]_NAME %1
         %assign cnt cnt+1
 %endmacro
 %macro endenum 0
+        %xdefine %[ENAME]_cnt cnt
 ;;; Support for debug printing
 Write%[ENAME]:
         fn r12
@@ -130,6 +132,19 @@ Write%[ENAME]:
     %%Done:
         fnret
 %endmacro
+
+%macro enumjmp 2
+        cmp %2, %1_cnt
+        jae .%1_INVALID
+        jmp [.%1_tbl+%2*8]
+.%1_tbl:
+        %assign idx 0
+        %rep %1_cnt
+        dq .%1_%[%1_%[idx]_ID]
+        %assign idx idx+1
+        %endrep
+%endmacro
+
 
 ;;; Structs
 %macro struct 1
@@ -172,7 +187,7 @@ argv: dq 0
 
 %macro loadargs 0
         pop rsi
-        mov [argv], rsi
-        mov [argc], rsp
+        mov [argc], rsi
+        mov [argv], rsp
 %endmacro
 

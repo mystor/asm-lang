@@ -147,6 +147,27 @@ WriteHex:
         syscall
         fnret
 
+WriteDec:
+        fn rax
+_WriteDec_CharLoop:
+        sub rsp, 1
+        mov rdx, 0
+        mov r8, 10
+        div r8
+        add rdx, '0'
+        mov [rsp], dl
+        cmp rax, 0              ; Write at least 1 char (test at end)
+        je _WriteDec_EndLoop
+        jmp _WriteDec_CharLoop
+_WriteDec_EndLoop:
+        mov rax, SYS_WRITE      ; Write
+        mov rdi, STDOUT
+        mov rsi, rsp
+        mov rdx, rbp
+        sub rdx, rsp
+        syscall
+        fnret
+
 WriteStr:
         fn r12
         fcall StrLen, r12
