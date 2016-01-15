@@ -72,11 +72,13 @@
 ;;; And then abort the current program
 %macro Panic 2+
         WriteLit STDERR, %2
-
-        mov rax, SYS_EXIT
-        mov rdi, %1
-        syscall
+        fcall Exit, %1
 %endmacro
+
+Exit:
+        fn rdi
+        mov rax, SYS_EXIT
+        syscall
 
 WriteChr:
         fn r8, r9

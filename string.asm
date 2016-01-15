@@ -34,6 +34,26 @@ __StrCmp_Same:
 __StrCmp_Eq:
         fnret 0
 
+;;; Find the last instance of a char in the string,
+;;; and return a pointer to it
+StrRFind:
+        fn r12, r13             ; r12 = string, r13 = char
+        fcall StrLen, r12
+        mov r14, rax
+__StrRFind_Loop:
+        dec r14
+        cmp r14, 0
+        je __StrRFind_Absent
+        mov al, [r12+r14]
+        cmp al, r13b
+        je __StrRFind_Found
+        jmp __StrRFind_Loop
+__StrRFind_Found:
+        lea rax, [r12+r14]
+        fnret rax
+__StrRFind_Absent:
+        fnret 0                 ; XXX: Correct behavior?
+
 ;;; Hash a string
 StrHash:
         fn r12, r14        ; r12 = string, r14 = M
