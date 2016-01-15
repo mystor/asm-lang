@@ -82,7 +82,7 @@ enum TOKEN
 endenum
 
 struct Token
-        field type
+        field variant
         field data
 endstruct
 
@@ -169,7 +169,7 @@ ReadTok_Map_LEN:   equ     $ - ReadTok_Map
         section .text
 
 %macro rettok 1-2 0
-        mov QWORD [r12+Token_type], %1
+        mov QWORD [r12+Token_variant], %1
         mov QWORD [r12+Token_data], %2
         fnret
 %endmacro
@@ -505,7 +505,7 @@ PeekTok:
         fn r12                  ; r12 = OUT token
         cmp r12, 0              ; If r12 is null, abort
         je .Exit
-        cmp QWORD [tok_cache + Token_type], TOKEN_INVALID
+        cmp QWORD [tok_cache + Token_variant], TOKEN_INVALID
         jne .CacheHit
 .CacheMiss:
         fcall ReadTok, tok_cache
@@ -519,7 +519,7 @@ PeekTokType:
         alloca SizeOfToken
         mov r13, rax
         fcall PeekTok, r13
-        fnret [r13+Token_type]
+        fnret [r13+Token_variant]
 
 EatTok:
         fn r12                  ; r12 = OUT token

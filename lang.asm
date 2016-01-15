@@ -47,7 +47,7 @@ _start:
 
 .ParsePrintStmt:
         fcall PeekTok, r12
-        cmp DWORD [r12+Token_type], TOKEN_EOF
+        cmp DWORD [r12+Token_variant], TOKEN_EOF
         je .Exit
 
         fcall ParseStmt

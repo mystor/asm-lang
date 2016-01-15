@@ -25,14 +25,14 @@ Expect:
         alloca SizeOfToken
         mov r13, rax
         fcall EatTok, r13
-        cmp QWORD [r13+Token_type], r12
+        cmp QWORD [r13+Token_variant], r12
         jne .fail
         fnret [r13+Token_data]
 .fail:
         WriteLit STDERR, 'Expected '
         fcall WriteTOKEN, r12
         WriteLit STDERR, ', instead found '
-        fcall WriteTOKEN, [r13+Token_type]
+        fcall WriteTOKEN, [r13+Token_variant]
         Panic 100, NL
 
 ParseItem:
@@ -62,11 +62,11 @@ ParseItem:
 
 .struct_def:
         fcall Expect, TOKEN_LBRACE
-        cmp QWORD [r14+Type_type], TYPE_STRUCT
+        cmp QWORD [r14+Type_variant], TYPE_STRUCT
         jne .expected_name
         fcall Alloc, Heap, SizeOfItemStruct
         mov rcx, rax
-        mov QWORD [rcx+ItemStruct_type], ITEM_STRUCT
+        mov QWORD [rcx+ItemStruct_variant], ITEM_STRUCT
         mov rax, [r14+TypeStruct_name]
         mov [rcx+ItemStruct_name], rax
         fcall NewArr, Heap, 8*8
@@ -93,14 +93,14 @@ ParseItem:
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
         WriteLit STDERR, 'Expected NAME, instead found '
-        fcall WriteTOKEN, [r13+Token_type] ; XXX: Write to STDERR?
+        fcall WriteTOKEN, [r13+Token_variant] ; XXX: Write to STDERR?
         Panic 100, NL
 
 .func_def:
         fcall Expect, TOKEN_LPAREN
         fcall Alloc, Heap, SizeOfItemFunc
         mov rcx, rax
-        mov QWORD [rcx+ItemFunc_type], ITEM_FUNC
+        mov QWORD [rcx+ItemFunc_variant], ITEM_FUNC
         mov [rcx+ItemFunc_name], r15
         mov [rcx+ItemFunc_returns], r14
         fcall NewArr, Heap, 8*8
@@ -129,7 +129,7 @@ ParseItem:
         fcall ParseStmt
         mov [rcx+ItemFunc_body], rax
         ;; Compound statements are the only legal function bodies
-        cmp QWORD [rax+Stmt_type], STMT_COMPOUND
+        cmp QWORD [rax+Stmt_variant], STMT_COMPOUND
         jne .bad_body_type
         fnret rcx
 .bad_body_type:
@@ -150,14 +150,14 @@ ParseType:
 .pointer:
         fcall Expect, TOKEN_STAR
         fcall Alloc, Heap, SizeOfTypePtr
-        mov QWORD [rax+TypePtr_type], TYPE_PTR
+        mov QWORD [rax+TypePtr_variant], TYPE_PTR
         mov [rax+TypePtr_target], r12
         mov r12, rax
         jmp .loop
 .array:
         fcall Expect, TOKEN_LBRACE
         fcall Alloc, Heap, SizeOfTypeArray
-        mov QWORD [rax+TypeArray_type], TYPE_ARRAY
+        mov QWORD [rax+TypeArray_variant], TYPE_ARRAY
         mov [rax+TypeArray_target], r12
         mov r12, rax
         fcall Expect, TOKEN_NUMBER
@@ -186,7 +186,7 @@ ParseTypeAtom:
 .int_type:
         fcall Alloc, Heap, SizeOfTypeInt
         mov r12, rax
-        mov QWORD [r12+TypeInt_type], TYPE_INT
+        mov QWORD [r12+TypeInt_variant], TYPE_INT
         mov QWORD [r12+TypeInt_signed], 1 ; true
         mov QWORD [r12+TypeInt_size], 4   ; default size for int
         mov r13, 0                  ; Recently seen modifier
@@ -258,7 +258,7 @@ ParseTypeAtom:
         fcall Expect, TOKEN_STRUCT
         fcall Alloc, Heap, SizeOfTypeStruct
         mov r12, rax
-        mov QWORD [r12+TypeStruct_type], TYPE_STRUCT
+        mov QWORD [r12+TypeStruct_variant], TYPE_STRUCT
         fcall Expect, TOKEN_IDENT
         mov [r12+TypeStruct_name], rax
         fnret r12
@@ -266,7 +266,7 @@ ParseTypeAtom:
 .void_type:
         fcall Expect, TOKEN_VOID
         fcall Alloc, Heap, SizeOfTypeVoid
-        mov QWORD [rax+TypeVoid_type], TYPE_VOID
+        mov QWORD [rax+TypeVoid_variant], TYPE_VOID
         fnret rax
 
 ;;; Parse a statement from the input stream
@@ -289,7 +289,7 @@ ParseStmt:
 .expr:
         fcall Alloc, Heap, SizeOfStmtExpr
         mov rcx, rax
-        mov QWORD [rcx+StmtExpr_type], STMT_EXPR
+        mov QWORD [rcx+StmtExpr_variant], STMT_EXPR
         fcall ParseExpr
         mov [rcx+StmtExpr_expr], rax
         fnret rcx
@@ -297,7 +297,7 @@ ParseStmt:
 .vardecl:
         fcall Alloc, Heap, SizeOfStmtVar
         mov rcx, rax
-        mov QWORD [rcx+StmtVar_type], STMT_VAR
+        mov QWORD [rcx+StmtVar_variant], STMT_VAR
         fcall ParseType
         mov [rcx+StmtVar_typeof], rax
         fcall Expect, TOKEN_IDENT
@@ -315,7 +315,7 @@ ParseStmt:
         fcall Expect, TOKEN_IF
         fcall Alloc, Heap, SizeOfStmtIf
         mov rcx, rax
-        mov QWORD [rcx+StmtIf_type], STMT_IF
+        mov QWORD [rcx+StmtIf_variant], STMT_IF
         fcall Expect, TOKEN_LPAREN
         fcall ParseExpr
         mov [rcx+StmtIf_cond], rax
@@ -335,7 +335,7 @@ ParseStmt:
         fcall Expect, TOKEN_WHILE
         fcall Alloc, Heap, SizeOfStmtWhile
         mov rcx, rax
-        mov QWORD [rcx+StmtWhile_type], STMT_WHILE
+        mov QWORD [rcx+StmtWhile_variant], STMT_WHILE
         fcall Expect, TOKEN_LPAREN
         fcall ParseExpr
         mov [rcx+StmtWhile_cond], rax
@@ -348,7 +348,7 @@ ParseStmt:
         fcall Expect, TOKEN_LBRACE
         fcall Alloc, Heap, SizeOfStmtCompound
         mov rcx, rax
-        mov QWORD [rcx+StmtCompound_type], STMT_COMPOUND
+        mov QWORD [rcx+StmtCompound_variant], STMT_COMPOUND
         fcall NewArr, Heap, 8*8
         mov r15, rax
 .compoundloop:
@@ -371,7 +371,7 @@ ParseStmt:
         fcall Expect, TOKEN_RETURN
         fcall Alloc, Heap, SizeOfStmtReturn
         mov rcx, rax
-        mov QWORD [rcx+StmtReturn_type], STMT_RETURN
+        mov QWORD [rcx+StmtReturn_variant], STMT_RETURN
         fcall ParseExpr
         mov [rcx+StmtReturn_value], rax
         fnret rcx
@@ -381,7 +381,7 @@ MkBinOp:
         fn r12, r13             ; r12 = left, r13 = op
         fcall Alloc, Heap, SizeOfExprBinOp
         mov r15, rax
-        mov QWORD [r15+ExprBinOp_type], EXPR_BINARY
+        mov QWORD [r15+ExprBinOp_variant], EXPR_BINARY
         mov [r15+ExprBinOp_left], r12
         mov [r15+ExprBinOp_op], r13
         fnret r15
@@ -519,7 +519,7 @@ ParsePrefix:
         fcall Expect, TOKEN_STAR
         fcall Alloc, Heap, SizeOfExprUnOp
         mov r12, rax
-        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_DEREF
         fcall ParsePrefix       ; Recurse to allow mult derefs
         mov [r12+ExprUnOp_target], rax
@@ -529,7 +529,7 @@ ParsePrefix:
         fcall Expect, TOKEN_AND
         fcall Alloc, Heap, SizeOfExprUnOp
         mov r12, rax
-        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_ADDROF
         fcall ParsePrefix
         mov [r12+ExprUnOp_target], rax
@@ -539,7 +539,7 @@ ParsePrefix:
         fcall Expect, TOKEN_DASH
         fcall Alloc, Heap, SizeOfExprUnOp
         mov r12, rax
-        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_NEGATE
         fcall ParsePrefix       ; Recurse to allow mult negations
         mov [r12+ExprUnOp_target], rax
@@ -549,7 +549,7 @@ ParsePrefix:
         fcall Expect, TOKEN_TILDE
         fcall Alloc, Heap, SizeOfExprUnOp
         mov r12, rax
-        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_BNOT
         fcall ParsePrefix       ; Recurse to allow mult negations
         mov [r12+ExprUnOp_target], rax
@@ -559,7 +559,7 @@ ParsePrefix:
         fcall Expect, TOKEN_NOT
         fcall Alloc, Heap, SizeOfExprUnOp
         mov r12, rax
-        mov QWORD [r12+ExprUnOp_type], EXPR_UNARY
+        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
         mov QWORD [r12+ExprUnOp_op], UNOP_NOT
         fcall ParsePrefix       ; Recurse to allow mult negations
         mov [r12+ExprUnOp_target], rax
@@ -578,7 +578,7 @@ ParsePrefix:
 .cast:
         fcall Alloc, Heap, SizeOfExprCast
         mov r12, rax
-        mov QWORD [r12+ExprCast_type], EXPR_CAST
+        mov QWORD [r12+ExprCast_variant], EXPR_CAST
         fcall ParseType
         mov [r12+ExprCast_newtype], rax
         fcall ParsePrefix
@@ -604,7 +604,7 @@ ParseTrailer:
 .call:
         fcall Expect, TOKEN_LPAREN
         fcall Alloc, Heap, SizeOfExprCall
-        mov QWORD [rax+ExprCall_type], EXPR_CALL
+        mov QWORD [rax+ExprCall_variant], EXPR_CALL
         mov [rax+ExprCall_target], r12
         mov r12, rax
         fcall NewArr, Heap, 8*8
@@ -631,7 +631,7 @@ ParseTrailer:
 .index:
         fcall Expect, TOKEN_LBRACE
         fcall Alloc, Heap, SizeOfExprIndex
-        mov QWORD [rax+ExprIndex_type], EXPR_INDEX
+        mov QWORD [rax+ExprIndex_variant], EXPR_INDEX
         mov [rax+ExprIndex_target], r12
         mov r12, rax
         fcall ParseExpr
@@ -642,13 +642,13 @@ ParseTrailer:
 .direct:
         fcall Expect, TOKEN_DOT
         fcall Alloc, Heap, SizeOfExprMember
-        mov QWORD [rax+ExprMember_type], EXPR_MEMBER
+        mov QWORD [rax+ExprMember_variant], EXPR_MEMBER
         mov QWORD [rax+ExprMember_indirect], 0
         jmp .member
 .indirect:
         fcall Expect, TOKEN_ARROW
         fcall Alloc, Heap, SizeOfExprMember
-        mov QWORD [rax+ExprMember_type], EXPR_MEMBER
+        mov QWORD [rax+ExprMember_variant], EXPR_MEMBER
         mov QWORD [rax+ExprMember_indirect], 1
         jmp .member
 .member:
@@ -673,7 +673,7 @@ ParseAtom:
         fcall Expect, TOKEN_NUMBER
         mov r12, rax
         fcall Alloc, Heap, SizeOfExprInt
-        mov QWORD [rax+ExprInt_type], EXPR_INTEGER
+        mov QWORD [rax+ExprInt_variant], EXPR_INTEGER
         mov [rax+ExprInt_value], r12
         fnret rax
 
@@ -682,7 +682,7 @@ ParseAtom:
         fcall Expect, TOKEN_LPAREN
         fcall Alloc, Heap, SizeOfExprSizeof
         mov r12, rax
-        mov QWORD [r12+ExprSizeof_type], EXPR_SIZEOF
+        mov QWORD [r12+ExprSizeof_variant], EXPR_SIZEOF
         fcall ParseType
         mov [r12+ExprSizeof_target], rax
         fcall Expect, TOKEN_RPAREN
@@ -692,7 +692,7 @@ ParseAtom:
         fcall Expect, TOKEN_IDENT
         mov r12, rax
         fcall Alloc, Heap, SizeOfExprRef
-        mov QWORD [rax+ExprRef_type], EXPR_REF
+        mov QWORD [rax+ExprRef_variant], EXPR_REF
         mov [rax+ExprRef_name], r12
         fnret rax
 

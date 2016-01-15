@@ -1,14 +1,14 @@
 ;;; -*- nasm -*-
 
 ;;; Items
-%define Item_type 0
+%define Item_variant 0
 enum ITEM
         opt FUNC
         opt STRUCT
 endenum
 
 struct ItemFunc
-        field type
+        field variant
         field name
         field params
         field returns
@@ -21,7 +21,7 @@ struct Param
 endstruct
 
 struct ItemStruct
-        field type
+        field variant
         field name
         field fields
 endstruct
@@ -32,7 +32,7 @@ struct Field
 endstruct
 
 ;;; STMTs
-%define Stmt_type 0
+%define Stmt_variant 0
 enum STMT
         opt VAR
         opt EXPR
@@ -45,42 +45,42 @@ enum STMT
 endenum
 
 struct StmtVar
-        field type
+        field variant
         field name
         field typeof
         field init
 endstruct
 
 struct StmtExpr
-        field type
+        field variant
         field expr
 endstruct
 
 struct StmtIf
-        field type
+        field variant
         field cond
         field cons
         field alt
 endstruct
 
 struct StmtWhile
-        field type
+        field variant
         field cond
         field body
 endstruct
 
 struct StmtCompound
-        field type
+        field variant
         field stmts
 endstruct
 
 struct StmtReturn
-        field type
+        field variant
         field value
 endstruct
 
 ;;; Exprs
-%define Expr_type 0
+%define Expr_variant 0
 enum EXPR
         opt INTEGER
         opt REF
@@ -94,12 +94,12 @@ enum EXPR
 endenum
 
 struct ExprInt
-        field type              ; EXPR
+        field variant           ; EXPR
         field value             ; signed
 endstruct
 
 struct ExprRef
-        field type
+        field variant
         field name
 endstruct
 
@@ -137,7 +137,7 @@ enum OP
 endenum
 
 struct ExprBinOp
-        field type
+        field variant
         field op
         field left
         field right
@@ -152,13 +152,13 @@ enum UNOP
 endenum
 
 struct ExprUnOp
-        field type
+        field variant
         field op
         field target
 endstruct
 
 struct ExprCall
-        field type
+        field variant
         field target
         field args
 endstruct
@@ -169,31 +169,31 @@ struct Argument
 endstruct
 
 struct ExprMember
-        field type
+        field variant
         field operand
         field name
         field indirect          ; ./->
 endstruct
 
 struct ExprIndex
-        field type
+        field variant
         field target
         field index
 endstruct
 
 struct ExprCast
-        field type
+        field variant
         field target
         field newtype
 endstruct
 
 struct ExprSizeof
-        field type
+        field variant
         field target
 endstruct
 
 ;;; Type
-%define Type_type 0
+%define Type_variant 0
 enum TYPE
         opt INT
         opt STRUCT
@@ -203,34 +203,34 @@ enum TYPE
 endenum
 
 struct TypeInt
-        field type
+        field variant
         field signed
         field size
 endstruct
 
 struct TypeStruct
-        field type
+        field variant
         field name
 endstruct
 
 struct TypePtr
-        field type
+        field variant
         field target
 endstruct
 
 struct TypeArray
-        field type
+        field variant
         field target
         field length
 endstruct
 
 struct TypeVoid
-        field type
+        field variant
 endstruct
 
 WriteItem:
         fn r12
-        mov rax, [r12+Item_type]
+        mov rax, [r12+Item_variant]
         enumjmp ITEM, rax
 
 .ITEM_FUNC:
@@ -284,7 +284,7 @@ WriteItem:
 
 WriteExpr:
         fn r12
-        mov rax, [r12+Expr_type]
+        mov rax, [r12+Expr_variant]
         enumjmp EXPR, rax
 
 .EXPR_INTEGER:
@@ -373,7 +373,7 @@ WriteExpr:
 
 WriteStmt:
         fn r12
-        mov rax, [r12+Stmt_type]
+        mov rax, [r12+Stmt_variant]
         enumjmp STMT, rax
 
 .STMT_VAR:
@@ -438,7 +438,7 @@ WriteStmt:
 
 WriteType:
         fn r12
-        mov rax, [r12+Expr_type]
+        mov rax, [r12+Expr_variant]
         enumjmp TYPE, rax
 
 .TYPE_INT:
