@@ -397,10 +397,17 @@ __ReadTok_IDENT_Done:
 
         ;; Check for matches with keywords
 %macro kwtok 2
-        cmplit r13, %1
+        section .data
+%%str: db %1, 0
+%%strlen: equ $ - %%str
+        section .text
+        fcall StrCmp, r13, %%str
+        cmp rax, 0
         je %%match
         jmp %%after
 %%match:
+        ;; Free the just-allocated string
+        fcall Free, Heap, r13, %%strlen
         rettok %2
 %%after:
 %endmacro

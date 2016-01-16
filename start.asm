@@ -18,6 +18,11 @@
         global _start
 _start:
         loadargs
+        ;; Set up base of stack for backtraces
+        push QWORD _start
+        push QWORD 0
+        mov rbp, rsp
+
         ;; Print out the name of the executable
         mov rax, [argv]
         mov rcx, [rax+0]

@@ -116,6 +116,7 @@ Free:
         sub rax, r13
         cmp rax, r12
         je __Free_Recent
+        WriteLit STDOUT, 'WARNING: Attempt to free non-recent memory'
         fnret
 __Free_Recent:
         mov [r15+Heap_page], r12
@@ -259,4 +260,48 @@ AlignArr:
         sub [r12+Array_len], rax
 __AlignArr_Aligned:
         fnret r12
+
+struct KVPair
+        field key
+        field value
+endstruct
+
+;;; Looks up a value by key - returns a pointer to the value
+LookupByKey:
+        fn r12, r13             ; r12 = address of array, r13 = string key
+        mov r12, [r12]          ; Dereference r12!
+        mov r14, [r12+Array_len]
+__LookupByKey_Loop:
+        cmp r14, 0
+        jle __LookupByKey_NotFound
+        sub r14, SizeOfKVPair
+        mov rax, [r12+r14+KVPair_key]
+        fcall StrCmp, rax, r13
+        cmp rax, 0
+        je __LookupByKey_Found
+        jmp __LookupByKey_Loop
+__LookupByKey_Found:
+        lea rax, [r12+r14+KVPair_value]
+        fnret rax
+__LookupByKey_NotFound:
+        fnret 0
+
+;;; Looks up a value by key - returns a pointer to the value
+;;; if the key is not present, inserts it, and returns a
+;;; pointer to where the value should go
+LookupOrInsertByKey:
+        fn r12, r13             ; r12 = address of array, r13 = string key
+        fcall LookupByKey, r12, r13
+        cmp rax, 0
+        jne __LookupOrInsertByKey_Found
+__LookupOrInsertByKey_NotFound:
+        fcall ExtendArr, [r12], SizeOfKVPair
+        mov [r12], rax
+        mov [rbx+KVPair_key], r13
+        lea rax, [rbx+KVPair_value]
+__LookupOrInsertByKey_Found:
+        fnret rax
+
+%define SizeOfQWORD 8
+
 

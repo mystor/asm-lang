@@ -1,7 +1,11 @@
 ;;; -*- nasm -*-
 
 ;;; Items
-%define Item_variant 0
+struct Item
+        field variant
+        field name
+endstruct
+
 enum ITEM
         opt FUNC
         opt STRUCT
@@ -29,6 +33,13 @@ endstruct
 struct Field
         field name
         field typeof
+endstruct
+
+struct ItemVar
+        field variant
+        field name
+        field typeof
+        field init
 endstruct
 
 ;;; STMTs

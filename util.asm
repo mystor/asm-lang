@@ -66,7 +66,10 @@
 
 ;;; Declare a fn
 %macro fn 0
-        multipush rbp, r12, r13, r14, r15, rcx, rdx
+        mov rax, $              ; Addr of start of fn
+        multipush r12, r13, r14, r15, rcx, rdx
+        push rax                ; Address of start of function
+        push rbp
         mov rbp, rsp
 %endmacro
 %macro fn 1
@@ -89,7 +92,9 @@
 ;;; Return from a function
 %macro fnret 0
         mov rsp, rbp
-        multipop rbp, r12, r13, r14, r15, rcx, rdx
+        pop rbp
+        add rsp, 8              ; Pop off the start addr of function
+        multipop r12, r13, r14, r15, rcx, rdx
         ret
 %endmacro
 %macro fnret 1
@@ -170,15 +175,6 @@ Write%[ENAME]:
 
 ;;; For consistency with SizeOf for structs
 %define SizeOfReg 8
-
-;;; String helper for comparing with integer
-%macro cmplit 2
-        section .data
-%%str: db %2, 0
-        section .text
-        fcall StrCmp, %1, %%str
-        cmp rax, 0
-%endmacro
 
         section .data
 argc: dq 0

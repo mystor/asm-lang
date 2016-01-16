@@ -6,3 +6,5 @@
 asmcc
 output
 core
+log
+syms

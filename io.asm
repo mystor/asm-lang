@@ -71,14 +71,37 @@
 ;;; Write out an error message to STDERR
 ;;; And then abort the current program
 %macro Panic 2+
-        WriteLit STDERR, %2
+        WriteLit STDOUT, %2, NL
+        %ifdef BACKTRACE
+        fcall DumpBacktrace
+        %endif
         fcall Exit, %1
 %endmacro
 
+        section .text
 Exit:
         fn rdi
         mov rax, SYS_EXIT
         syscall
+
+%ifdef BACKTRACE
+DumpBacktrace:
+        fn r8
+        mov r12, rbp
+        WriteLit STDOUT, '==== BACKTRACE ====', NL
+.loop:
+        cmp r12, 0
+        je .done
+        WriteLit STDOUT, 'fn>> '
+        fcall WriteHex, STDOUT, [r12+8]
+        WriteLit STDOUT, NL
+        ;; XXX: Maybe dump registers?
+        mov r12, [r12]
+        jmp .loop
+.done:
+        fnret
+%endif
+
 
 WriteChr:
         fn r8, r9
@@ -91,8 +114,6 @@ WriteChr:
         fnret
 
 hex_table:      db      '0123456789abcdef'
-hex_prefix:     db      '0x'
-hex_len:        equ     $ - hex_prefix
 
 %macro NumToBinBuf 1
         mov rax, %1
@@ -116,7 +137,7 @@ hex_len:        equ     $ - hex_prefix
 %endmacro
 
 WriteHex:
-        fn rax
+        fn r12, rax
         mov r8, rsp
 
         ;; Calculate each of the hex characters
@@ -133,16 +154,9 @@ WriteHex:
         %endrep
 
 .done:
-        ;; Print the 0x prefix
-        mov rax, SYS_WRITE
-        mov rdi, STDOUT
-        mov rsi, hex_prefix
-        mov rdx, hex_len
-        syscall
-
         ;; Print the hexadecimal values
         mov rax, SYS_WRITE
-        mov rdi, STDOUT
+        mov rdi, r12
         mov rsi, r8
         mov rdx, rsp
         sub rdx, r8

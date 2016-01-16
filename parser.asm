@@ -29,9 +29,9 @@ Expect:
         jne .fail
         fnret [r13+Token_data]
 .fail:
-        WriteLit STDERR, 'Expected '
+        WriteLit STDOUT, 'Expected '
         fcall WriteTOKEN, r12
-        WriteLit STDERR, ', instead found '
+        WriteLit STDOUT, ', instead found '
         fcall WriteTOKEN, [r13+Token_variant]
         Panic 100, NL
 
@@ -92,8 +92,8 @@ ParseItem:
         fcall Expect, TOKEN_SEMI
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
-        WriteLit STDERR, 'Expected NAME, instead found '
-        fcall WriteTOKEN, [r13+Token_variant] ; XXX: Write to STDERR?
+        WriteLit STDOUT, 'Expected NAME, instead found '
+        fcall WriteTOKEN, [r13+Token_variant] ; XXX: Write to STDOUT?
         Panic 100, NL
 
 .func_def:
