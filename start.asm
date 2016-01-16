@@ -23,6 +23,16 @@ _start:
         push QWORD 0
         mov rbp, rsp
 
+        ;; Hook up the segv handler
+        mov rax, SYS_RT_SIGACTION
+        mov rdi, SIGSEGV
+        mov rsi, SigSEGVHandler
+        mov rdx, 0
+        mov r10, 8              ; MAGIC
+        syscall
+        cmp rax, 0
+        jne .SigHandlerFailed
+
         ;; Print out the name of the executable
         mov rax, [argv]
         mov rcx, [rax+0]
@@ -67,6 +77,9 @@ _start:
         Panic 101, 'Incorrect Argument Length', NL
 .IncorrectArgValue:
         Panic 101, 'Incorrect Argument Value', NL
+.SigHandlerFailed:
+        fcall WriteDec, rax
+        Panic 101, NL, 'Signal handler Failed to Attach', NL
 
 ; ASDHASDHKSAD:                   ; Testing with generating executables
 ;         mov rax, SYS_OPEN

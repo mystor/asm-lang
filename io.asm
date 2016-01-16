@@ -13,6 +13,11 @@
         %define SYS_FORK        57
         %define SYS_VFORK       58
         %define SYS_EXECVE      59
+
+        %define SYS_RT_SIGACTION 13
+        %define SYS_RT_SIGRETURN 15
+
+        %define SIGSEGV 11
 %else
         %error "Unsupported Platform"
 %endif
@@ -230,3 +235,26 @@ GetChr:
 __GetChr_Fail:
         fnret -1
 
+
+; %define SizeOfSigaction 4*8
+%define Sigaction_sa_handler 0
+%define Sigaction_sa_flags 8
+%define Sigaction_sa_restorer 16
+%define Sigaction_sa_mask 24
+%define SizeOfSigset 128
+%define Sig_MAGIC_FLAGS 67108864 ; ???
+
+        section .data
+SigSEGVHandler:
+        dq SegvHandler
+        dq Sig_MAGIC_FLAGS
+        dq __restore_rt
+        times SizeOfSigset db 0
+
+        section .text
+SegvHandler:
+        Panic 101, 'Received SIGSEGV - aborting.', NL
+
+__restore_rt:
+        mov rax, SYS_RT_SIGRETURN
+        syscall
