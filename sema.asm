@@ -1,13 +1,13 @@
 ;;; -*- nasm -*-
 
-        section .data
+        section .bss
 globl_heap ContextHeap
-globals: dq 0
-locals: dq 0
-return_type: dq 0
+globals: resq 1
+locals: resq 1
+return_type: resq 1
 
 globl_heap StructHeap
-structs: dq 0
+structs: resq 1
 
         section .text
 IsValidCast:
@@ -66,6 +66,9 @@ TyckMkCoerce:
 
 TyckMkCast:
         fn r12, r13             ; r12 = expr, r13 = type
+        fcall TypeEq, [r12+Expr_typeof], r13
+        cmp rax, 0
+        jne .equal
         fcall IsValidCast, [r12+Expr_typeof], r13
         cmp rax, 0
         je .invalid
@@ -75,6 +78,9 @@ TyckMkCast:
         mov [rax+ExprCast_typetarget], r13
         mov [rax+ExprCast_target], r12
         fnret rax
+.equal:
+        ;; Types are equal, don't bother creating a cast
+        fnret r12
 .invalid:
         Panic 101, 'Invalid type cast', NL
 
@@ -281,7 +287,18 @@ TypeckExpr:
 .OP_BOR:
 .OP_BAND:
 .OP_BXOR:
+        mov rax, [r12+ExprBinOp_left]
+        mov r13, [rax+Expr_typeof]
+        cmp QWORD [r13+Type_variant], TYPE_INT
+        jne ._OP_ARITH_notint
+        mov rax, [r12+ExprBinOp_right]
+        mov r14, [rax+Expr_typeof]
+        cmp QWORD [r14+Type_variant], TYPE_INT
+        jne ._OP_ARITH_notint
+        
         ; Unify integer arguments w/ casts
+._OP_ARITH_notint:
+        Panic 101, 'Cannot perform operation on non-int value', NL
 .OP_GT:
 .OP_LT:
 .OP_GTE:

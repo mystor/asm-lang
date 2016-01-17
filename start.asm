@@ -18,6 +18,7 @@
         global _start
 _start:
         loadargs
+
         ;; Set up base of stack for backtraces
         push QWORD _start
         push QWORD 0

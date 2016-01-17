@@ -192,15 +192,15 @@ ELF_prelude_size: equ $ - ELF_prelude
 ;;; functions in an arbitrary order
 ELF_text_start: equ ELF_prelude_size + ELF_base_addr
 
-        section .data
+        section .bss
 globl_heap TextHeap
-text_arr: dq 0
+text_arr: resq 1
 globl_heap DataHeap
-data_arr: dq 0
+data_arr: resq 1
 globl_heap SymTabHeap
-symtab_arr: dq 0
+symtab_arr: resq 1
 globl_heap StrTabHeap
-strtab_arr: dq 0
+strtab_arr: resq 1
 
 %macro ElfFindLitSymbol 1
         section .rodata

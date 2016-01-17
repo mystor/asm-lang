@@ -195,9 +195,9 @@ Write%[ENAME]:
 ;;; For consistency with SizeOf for structs
 %define SizeOfReg 8
 
-        section .data
-argc: dq 0
-argv: dq 0
+        section .bss
+argc: resq 1
+argv: resq 1
 
 %macro loadargs 0
         pop rsi

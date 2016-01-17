@@ -51,7 +51,7 @@ for ARG in $*; do
 done
 
 if [ $DEBUG = yes ]; then
-    ASMFLAGS="$ASMFLAGS -g -F stabs"
+    ASMFLAGS="$ASMFLAGS -g -F stabs -O0"
 fi
 
 if [ $BACKTRACE = yes ]; then

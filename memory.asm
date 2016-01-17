@@ -74,13 +74,14 @@ __MemEq_Neq:
 
 ;;; A macro for creating a heap's required data
 %macro globl_heap 1
+        [section .bss]
 %1:
-.page: dq 0
-.rem: dq 0
+.page: resq 1
+.rem: resq 1
+        __SECT__
 %endmacro
 
 ;;; Heap declarations
-        section .data
 globl_heap Heap
         section .text
 
