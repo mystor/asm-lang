@@ -23,6 +23,7 @@ _start:
         push QWORD 0
         mov rbp, rsp
 
+%ifdef BACKTRACE
         ;; Hook up the segv handler
         mov rax, SYS_RT_SIGACTION
         mov rdi, SIGSEGV
@@ -32,6 +33,7 @@ _start:
         syscall
         cmp rax, 0
         jne .SigHandlerFailed
+%endif
 
         ;; Print out the name of the executable
         mov rax, [argv]

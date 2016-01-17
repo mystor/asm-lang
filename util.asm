@@ -161,16 +161,35 @@ Write%[ENAME]:
         ;; e.g. mov rax, [r13+Token_type]
 
         %xdefine %[SNAME]_%1 offset
+        %defstr %[SNAME]$at$%[offset] %1
         %assign offset offset+8
 %endmacro
 %macro endstruct 0
 ;;; Get the size of the type!
         %xdefine SizeOf%[SNAME] offset
-        %xdefine static_[SNAME] times offset dq 0
+        %xdefine %[SNAME]$$maxoffset offset
+        %xdefine static_[SNAME] times offset db 0
 %[SNAME]_copy:
         fn r8, r9
         fcall MemCpy, r8, r9, SizeOf%[SNAME]
         fnret
+%endmacro
+%macro endstruct 1
+        struct_ensureprefix %1
+        endstruct
+%endmacro
+%macro endstruct 2+
+        struct_ensureprefix %1
+        endstruct %2
+%endmacro
+%macro struct_ensureprefix 1
+        %assign i 0
+        %rep %1$$maxoffset/8
+          %if %[SNAME]$at$%[i] != %1$at$%[i]
+            %error 'Mismatched prefix'
+          %endif
+          %assign i i+8
+        %endrep
 %endmacro
 
 ;;; For consistency with SizeOf for structs

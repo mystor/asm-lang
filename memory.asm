@@ -46,6 +46,27 @@ __MemSet_Loop:
 __MemSet_Done:
         fnret
 
+;;; 1 if r12 and r13's first r14 bytes are equal
+;;; 0 otherwise
+MemEq:
+        fn r12, r13, r14
+__MemEq_Loop:
+        cmp r14, 0
+        je __MemEq_Eq
+        mov BYTE [r12], al
+        mov BYTE [r13], bl
+        cmp al, bl
+        jne __MemEq_Neq
+        add r12, 1
+        add r13, 1
+        sub r14, 1
+        jmp __MemEq_Loop
+__MemEq_Eq:
+        fnret 1
+__MemEq_Neq:
+        fnret 0
+
+
 ;;; Offsets of the page and remainder properties in heaps
 %define Heap_page 0
 %define Heap_rem 8

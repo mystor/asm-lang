@@ -1,34 +1,59 @@
 ;;; -*- nasm -*-
 
+;;; Declarations
+;;; EX: Param, ItemFunc, ItemVar, ExprVar
+struct Decl
+        field variant
+        field name
+        field typeof
+        field dvariant
+endstruct
+%undef Decl_variant             ; Shouldn't access
+%undef SizeOfDecl               ; Don't instantiate
+
+enum DECL
+        opt FUNC
+        opt PARAM
+        opt LOCAL
+        opt GLOBAL
+endenum
+
 ;;; Items
 struct Item
         field variant
         field name
 endstruct
+%undef SizeOfItem               ; Don't instantiate
 
 enum ITEM
         opt FUNC
         opt STRUCT
+        ; opt VAR
 endenum
 
-struct ItemFunc
+struct ItemFunc                 ; DECL
         field variant
         field name
+        field typeof
+        field dvariant
         field params
         field returns
         field body
-endstruct
+endstruct Item, Decl
 
-struct Param
+struct Param                    ; DECL
+        field variant           ; for compat with Decl
         field name
         field typeof
-endstruct
+        field dvariant
+endstruct Decl
+%undef Param_variant            ; Shouldn't access
 
 struct ItemStruct
         field variant
         field name
         field fields
-endstruct
+endstruct Item
 
 struct Field
         field name
@@ -39,11 +64,16 @@ struct ItemVar
         field variant
         field name
         field typeof
+        field dvariant
         field init
-endstruct
+endstruct Item
 
 ;;; STMTs
-%define Stmt_variant 0
+struct Stmt
+        field variant
+endstruct
+%undef SizeOfStmt               ; Don't instantiate
+
 enum STMT
         opt VAR
         opt EXPR
@@ -59,39 +89,46 @@ struct StmtVar
         field variant
         field name
         field typeof
+        field dvariant
         field init
-endstruct
+endstruct Stmt, Decl
 
 struct StmtExpr
         field variant
         field expr
-endstruct
+endstruct Stmt
 
 struct StmtIf
         field variant
         field cond
         field cons
         field alt
-endstruct
+endstruct Stmt
 
 struct StmtWhile
         field variant
         field cond
         field body
-endstruct
+endstruct Stmt
 
 struct StmtCompound
         field variant
         field stmts
-endstruct
+endstruct Stmt
 
 struct StmtReturn
         field variant
         field value
-endstruct
+endstruct Stmt
 
 ;;; Exprs
-%define Expr_variant 0
+struct Expr
+        field variant
+        field typeof
+        field lvalue
+endstruct
+%undef SizeOfExpr               ; Don't instantiate
+
 enum EXPR
         opt INTEGER
         opt REF
@@ -99,20 +136,24 @@ enum EXPR
         opt UNARY
         opt CALL
         opt MEMBER
-        opt INDEX
         opt CAST
         opt SIZEOF
 endenum
 
 struct ExprInt
-        field variant           ; EXPR
-        field value             ; signed
-endstruct
+        field variant
+        field typeof
+        field lvalue
+        field value
+endstruct Expr
 
 struct ExprRef
         field variant
+        field typeof
+        field lvalue
         field name
-endstruct
+        field decl
+endstruct Expr
 
 enum OP
         opt PLUS
@@ -149,10 +190,12 @@ endenum
 
 struct ExprBinOp
         field variant
+        field typeof
+        field lvalue
         field op
         field left
         field right
-endstruct
+endstruct Expr
 
 enum UNOP
         opt NEGATE
@@ -164,81 +207,97 @@ endenum
 
 struct ExprUnOp
         field variant
+        field typeof
+        field lvalue
         field op
         field target
-endstruct
+endstruct Expr
 
 struct ExprCall
         field variant
+        field typeof
+        field lvalue
         field target
         field args
-endstruct
-
-struct Argument
-        field typeof
-        field name
-endstruct
+endstruct Expr
 
 struct ExprMember
         field variant
+        field typeof
+        field lvalue
         field operand
         field name
-        field indirect          ; ./->
-endstruct
-
-struct ExprIndex
-        field variant
-        field target
-        field index
-endstruct
+        field field
+endstruct Expr
 
 struct ExprCast
         field variant
+        field typeof
+        field lvalue
         field target
-        field newtype
-endstruct
+        field typetarget
+endstruct Expr
 
 struct ExprSizeof
         field variant
+        field typeof
+        field lvalue
         field target
-endstruct
+endstruct Expr
 
 ;;; Type
-%define Type_variant 0
+struct Type
+        field variant
+endstruct
+%undef SizeOfType
+
 enum TYPE
         opt INT
         opt STRUCT
         opt PTR
         opt ARRAY
         opt VOID
+        opt FUNC
 endenum
 
 struct TypeInt
         field variant
         field signed
         field size
-endstruct
+endstruct Type
 
 struct TypeStruct
         field variant
         field name
-endstruct
+endstruct Type
 
 struct TypePtr
         field variant
         field target
-endstruct
+endstruct Type
 
 struct TypeArray
-        field variant
+        field variant           ; Must share prefix with TypePtr
         field target
         field length
-endstruct
+endstruct Type
 
 struct TypeVoid
         field variant
-endstruct
+endstruct Type
 
+struct TypeFunc                 ; XXX: Actually implement function ptrs
+        field variant
+        field func
+endstruct Type
+
+        section .data
+I64_type:
+        dq TYPE_INT
+        dq 1
+        dq 8
+
+        section .text
 WriteItem:
         fn r12
         mov rax, [r12+Item_variant]
@@ -318,7 +377,8 @@ WriteExpr:
 
 .EXPR_UNARY:
         WriteLit STDOUT, '('
-        fcall WriteOP, [r12+ExprUnOp_op]
+        fcall WriteUNOP, [r12+ExprUnOp_op]
+        WriteLit STDOUT, ' '
         fcall WriteExpr, [r12+ExprUnOp_target]
         WriteLit STDOUT, ')'
         fnret
@@ -332,9 +392,7 @@ WriteExpr:
         cmp r14, [r13+Array_len]
         je ._EXPR_CALL_afterargs
         mov r15, [r13+r14]
-        fcall WriteType, [r15+Argument_typeof]
-        WriteLit STDOUT, ' '
-        fcall WriteStr, [r15+Argument_name]
+        fcall WriteExpr, r15
         cmp r14, [r13+Array_len]
         je ._EXPR_CALL_afterargs
         WriteLit STDOUT, ', '
@@ -346,28 +404,13 @@ WriteExpr:
 
 .EXPR_MEMBER:
         fcall WriteExpr, [r12+ExprMember_operand]
-        cmp QWORD [r12+ExprMember_indirect], 0
-        je ._EXPR_MEMBER_indirect
-._EXPR_MEMBER_direct:
         WriteLit STDOUT, '.'
-        jmp ._EXPR_MEMBER_afterdirect
-._EXPR_MEMBER_indirect:
-        WriteLit STDOUT, '->'
-        jmp ._EXPR_MEMBER_afterdirect
-._EXPR_MEMBER_afterdirect:
         fcall WriteStr, [r12+ExprMember_name]
-        fnret
-
-.EXPR_INDEX:
-        fcall WriteExpr, [r12+ExprIndex_target]
-        WriteLit STDOUT, '['
-        fcall WriteExpr, [r12+ExprIndex_index]
-        WriteLit STDOUT, ']'
         fnret
 
 .EXPR_CAST:
         WriteLit STDOUT, '(('
-        fcall WriteType, [r12+ExprCast_newtype]
+        fcall WriteType, [r12+ExprCast_typetarget]
         WriteLit STDOUT, ')'
         fcall WriteExpr, [r12+ExprCast_target]
         WriteLit STDOUT, ')'
@@ -443,13 +486,14 @@ WriteStmt:
 .STMT_RETURN:
         WriteLit STDOUT, 'return '
         fcall WriteExpr, [r12+StmtReturn_value]
+        fnret
 
 .STMT_INVALID:
         Panic 101, 'Invalid Statement Type?', NL
 
 WriteType:
         fn r12
-        mov rax, [r12+Expr_variant]
+        mov rax, [r12+Type_variant]
         enumjmp TYPE, rax
 
 .TYPE_INT:
@@ -486,6 +530,10 @@ WriteType:
 
 .TYPE_VOID:
         WriteLit STDOUT, 'void'
+        fnret
+
+.TYPE_FUNC:
+        WriteLit STDOUT, 'func'
         fnret
 
 .TYPE_INVALID:

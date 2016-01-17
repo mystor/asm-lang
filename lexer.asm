@@ -259,7 +259,7 @@ __ReadTok_DASH:
         rettok TOKEN_DASH
 __ReadTok_ARROW:
         fcall EatChr
-        rettok TOKEN_DASH
+        rettok TOKEN_ARROW
 __ReadTok_DASHEQ:
         fcall EatChr
         rettok TOKEN_DASHEQ

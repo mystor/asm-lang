@@ -241,7 +241,7 @@ __GetChr_Fail:
 %define Sigaction_sa_flags 8
 %define Sigaction_sa_restorer 16
 %define Sigaction_sa_mask 24
-%define SizeOfSigset 128
+%define SizeOfSigset 128         ; Seems unnecessarially big
 %define Sig_MAGIC_FLAGS 67108864 ; ???
 
         section .data

@@ -101,6 +101,11 @@ ParseItem:
         fcall Alloc, Heap, SizeOfItemFunc
         mov rcx, rax
         mov QWORD [rcx+ItemFunc_variant], ITEM_FUNC
+        mov QWORD [rcx+ItemFunc_dvariant], DECL_FUNC
+        fcall Alloc, Heap, SizeOfTypeFunc
+        mov QWORD [rax+TypeFunc_variant], TYPE_FUNC
+        mov [rax+TypeFunc_func], rcx
+        mov [rcx+ItemFunc_typeof], rax
         mov [rcx+ItemFunc_name], r15
         mov [rcx+ItemFunc_returns], r14
         fcall NewArr, Heap, 8*8
@@ -111,6 +116,7 @@ ParseItem:
 .paramsloop:
         fcall Alloc, Heap, SizeOfParam
         mov r12, rax
+        mov QWORD [r12+Param_dvariant], DECL_PARAM
         fcall ParseType
         mov [r12+Param_typeof], rax
         fcall Expect, TOKEN_IDENT
@@ -234,6 +240,7 @@ ParseTypeAtom:
         jmp .int_loop
 
 .char_done:
+        fcall Expect, TOKEN_CHAR
         cmp r13, 0
         jne .unexpected_modified_char
         mov QWORD [r12+TypeInt_size], 1
@@ -298,6 +305,7 @@ ParseStmt:
         fcall Alloc, Heap, SizeOfStmtVar
         mov rcx, rax
         mov QWORD [rcx+StmtVar_variant], STMT_VAR
+        mov QWORD [rcx+StmtVar_dvariant], DECL_LOCAL
         fcall ParseType
         mov [rcx+StmtVar_typeof], rax
         fcall Expect, TOKEN_IDENT
@@ -580,7 +588,7 @@ ParsePrefix:
         mov r12, rax
         mov QWORD [r12+ExprCast_variant], EXPR_CAST
         fcall ParseType
-        mov [r12+ExprCast_newtype], rax
+        mov [r12+ExprCast_typetarget], rax
         fcall ParsePrefix
         mov [r12+ExprCast_target], rax
         fnret r12
@@ -593,7 +601,7 @@ ParseTrailer:
         fcall PeekTokType
         cmp rax, TOKEN_LPAREN
         je .call
-        cmp rax, TOKEN_LBRACE
+        cmp rax, TOKEN_LBRACKET
         je .index
         cmp rax, TOKEN_DOT
         je .direct
@@ -629,29 +637,36 @@ ParseTrailer:
         jmp .loop
 
 .index:
-        fcall Expect, TOKEN_LBRACE
-        fcall Alloc, Heap, SizeOfExprIndex
-        mov QWORD [rax+ExprIndex_variant], EXPR_INDEX
-        mov [rax+ExprIndex_target], r12
+        ;; The index expression a[b] ~~ *(a+b)
+        fcall Expect, TOKEN_LBRACKET
+        fcall Alloc, Heap, SizeOfExprBinOp
+        mov QWORD [rax+ExprBinOp_variant], EXPR_BINARY
+        mov QWORD [rax+ExprBinOp_op], OP_PLUS
+        mov [rax+ExprBinOp_left], r12
         mov r12, rax
         fcall ParseExpr
-        mov [r12+ExprIndex_index], rax
-        fcall Expect, TOKEN_RBRACE
+        mov [r12+ExprBinOp_right], rax
+        fcall Expect, TOKEN_RBRACKET
+        fcall Alloc, Heap, SizeOfExprUnOp
+        mov QWORD [rax+ExprUnOp_variant], EXPR_UNARY
+        mov QWORD [rax+ExprUnOp_op], UNOP_DEREF
+        mov [rax+ExprUnOp_target], r12
+        mov r12, rax
         jmp .loop
 
 .direct:
         fcall Expect, TOKEN_DOT
-        fcall Alloc, Heap, SizeOfExprMember
-        mov QWORD [rax+ExprMember_variant], EXPR_MEMBER
-        mov QWORD [rax+ExprMember_indirect], 0
         jmp .member
 .indirect:
         fcall Expect, TOKEN_ARROW
+        fcall Alloc, Heap, SizeOfExprUnOp
+        mov QWORD [rax+ExprUnOp_variant], EXPR_UNARY
+        mov QWORD [rax+ExprUnOp_op], UNOP_DEREF
+        mov [rax+ExprUnOp_target], r12
+        mov r12, rax
+.member:
         fcall Alloc, Heap, SizeOfExprMember
         mov QWORD [rax+ExprMember_variant], EXPR_MEMBER
-        mov QWORD [rax+ExprMember_indirect], 1
-        jmp .member
-.member:
         mov [rax+ExprMember_operand], r12
         mov r12, rax
         fcall Expect, TOKEN_IDENT
@@ -674,6 +689,7 @@ ParseAtom:
         mov r12, rax
         fcall Alloc, Heap, SizeOfExprInt
         mov QWORD [rax+ExprInt_variant], EXPR_INTEGER
+        ;mov QWORD [rax+ExprInt_typeof], I64_type
         mov [rax+ExprInt_value], r12
         fnret rax
 
@@ -683,6 +699,7 @@ ParseAtom:
         fcall Alloc, Heap, SizeOfExprSizeof
         mov r12, rax
         mov QWORD [r12+ExprSizeof_variant], EXPR_SIZEOF
+        ;mov QWORD [r12+ExprSizeof_typeof], I64_type
         fcall ParseType
         mov [r12+ExprSizeof_target], rax
         fcall Expect, TOKEN_RPAREN
