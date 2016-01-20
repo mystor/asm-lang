@@ -354,34 +354,33 @@ WriteItem:
 
 WriteExpr:
         fn r12
+        WriteLit STDOUT, '<'
+        fcall WriteType, [r12+Expr_typeof]
+        WriteLit STDOUT, ','
         mov rax, [r12+Expr_variant]
         enumjmp EXPR, rax
 
 .EXPR_INTEGER:
         fcall WriteDec, [r12+ExprInt_value]
-        fnret
+        jmp .done
 
 .EXPR_REF:
         fcall WriteStr, [r12+ExprRef_name]
-        fnret
+        jmp .done
 
 .EXPR_BINARY:
-        WriteLit STDOUT, '('
         fcall WriteExpr, [r12+ExprBinOp_left]
         WriteLit STDOUT, ' '
         fcall WriteOP, [r12+ExprBinOp_op]
         WriteLit STDOUT, ' '
         fcall WriteExpr, [r12+ExprBinOp_right]
-        WriteLit STDOUT, ')'
-        fnret
+        jmp .done
 
 .EXPR_UNARY:
-        WriteLit STDOUT, '('
         fcall WriteUNOP, [r12+ExprUnOp_op]
         WriteLit STDOUT, ' '
         fcall WriteExpr, [r12+ExprUnOp_target]
-        WriteLit STDOUT, ')'
-        fnret
+        jmp .done
 
 .EXPR_CALL:
         fcall WriteExpr, [r12+ExprCall_target]
@@ -400,30 +399,33 @@ WriteExpr:
         jmp ._EXPR_CALL_argsloop
 ._EXPR_CALL_afterargs:
         WriteLit STDOUT, ')'
-        fnret
+        jmp .done
 
 .EXPR_MEMBER:
         fcall WriteExpr, [r12+ExprMember_operand]
         WriteLit STDOUT, '.'
         fcall WriteStr, [r12+ExprMember_name]
-        fnret
+        jmp .done
 
 .EXPR_CAST:
-        WriteLit STDOUT, '(('
+        WriteLit STDOUT, '('
         fcall WriteType, [r12+ExprCast_typetarget]
         WriteLit STDOUT, ')'
         fcall WriteExpr, [r12+ExprCast_target]
-        WriteLit STDOUT, ')'
-        fnret
+        jmp .done
 
 .EXPR_SIZEOF:
         WriteLit STDOUT, 'sizeof('
         fcall WriteType, [r12+ExprSizeof_target]
         WriteLit STDOUT, ')'
-        fnret
+        jmp .done
 
 .EXPR_INVALID:
         Panic 101, 'Invalid Expression Type?', NL
+
+.done:
+        WriteLit STDOUT, '>'
+        fnret
 
 WriteStmt:
         fn r12
@@ -493,6 +495,8 @@ WriteStmt:
 
 WriteType:
         fn r12
+        cmp r12, 0
+        je .NOTYPE
         mov rax, [r12+Type_variant]
         enumjmp TYPE, rax
 
@@ -538,3 +542,7 @@ WriteType:
 
 .TYPE_INVALID:
         Panic 101, 'Invalid Type Type?', NL
+
+.NOTYPE:
+        WriteLit STDOUT, 'NIL'
+        fnret

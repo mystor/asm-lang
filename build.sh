@@ -19,14 +19,8 @@ function run_with_debugger() {
 
 function run_with_backtrace() {
     set -x
-    nm asmcc -l > syms
-    { ./asmcc examples/test.c; exit $?; } | \
-        { tee log | sed -e '/fn>>/d'; } 2>/dev/null
-    { set +x; } 2> /dev/null # Disable logging
-
-    # Print out the backtrace if it is present
-    sed -e '/fn>>/ !d' -e 's/fn>> //' log | \
-        xargs -I pat -n1 grep pat syms
+    # Use btparse.pl to replace the backtrace lines
+    ./asmcc examples/test.c | perl btparse.pl
 }
 
 # defaults

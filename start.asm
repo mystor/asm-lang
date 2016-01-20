@@ -67,7 +67,9 @@ _start:
         je .Exit
 
         fcall ParseItem
-        fcall WriteItem, rax
+        mov r12, rax
+        fcall WriteItem, r12
+        fcall TypeckItem, r12
         WriteLit STDOUT, NL
 
         jmp .ParsePrintItem

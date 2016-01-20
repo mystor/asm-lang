@@ -97,8 +97,12 @@ DumpBacktrace:
 .loop:
         cmp r12, 0
         je .done
-        WriteLit STDOUT, 'fn>> '
-        fcall WriteHex, STDOUT, [r12+8]
+        mov rcx, [r12+64]
+        WriteLit STDOUT, 'BT>--stop-address=0x'
+        fcall WriteHex, STDOUT, rcx
+        sub rcx, 5              ; Size of the call instruction!
+        WriteLit STDOUT, ' --start-address=0x'
+        fcall WriteHex, STDOUT, rcx
         WriteLit STDOUT, NL
         ;; XXX: Maybe dump registers?
         mov r12, [r12]
