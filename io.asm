@@ -1,5 +1,6 @@
 ;;; -*- nasm -*-
 %define NL              10      ; EOL
+%define TAB             9       ; TAB
 
 ;;; System Calls
 %ifidn __OUTPUT_FORMAT__, elf64 ; Linux
@@ -64,23 +65,25 @@
 %%str: db %2
 %%len: equ $ - %%str
         section .text
-        multipush rbp, r12, r13, r14, r15, rcx, rdx
-        mov rax, SYS_WRITE
-        mov rdi, %1
-        mov rsi, %%str
-        mov rdx, %%len
-        syscall
-        multipop rbp, r12, r13, r14, r15, rcx, rdx
+        fcall WriteBytes, %1, %%str, %%len
 %endmacro
+
+        section .text
+WriteBytes:
+        fn r8, r9, r10
+        mov rax, SYS_WRITE
+        mov rdi, r8
+        mov rsi, r9
+        mov rdx, r10
+        syscall
+        fnret
 
 ;;; Write out an error message to STDERR
 ;;; And then abort the current program
 %macro Panic 2+
-        WriteLit STDOUT, %2, NL
-        %ifdef BACKTRACE
-        fcall DumpBacktrace
-        %endif
-        fcall Exit, %1
+        %defstr %%str __LINE__
+        WriteLit STDOUT, NL, '(', __FILE__, ':', %%str, ') ', %2, NL
+        mov rax, [0]
 %endmacro
 
         section .text
@@ -92,19 +95,68 @@ Exit:
 %ifdef BACKTRACE
 DumpBacktrace:
         fn r8
-        mov r12, rbp
+        mov r12, [rbp]
         WriteLit STDOUT, '==== BACKTRACE ====', NL
 .loop:
-        cmp r12, 0
+        cmp QWORD [r12], 0
         je .done
-        mov rcx, [r12+64]
+        ;mov rcx, [r12+64]
+        mov rcx, [r12+120]
         WriteLit STDOUT, 'BT>--stop-address=0x'
         fcall WriteHex, STDOUT, rcx
         sub rcx, 5              ; Size of the call instruction!
         WriteLit STDOUT, ' --start-address=0x'
         fcall WriteHex, STDOUT, rcx
-        WriteLit STDOUT, NL
-        ;; XXX: Maybe dump registers?
+        ;WriteLit STDOUT, NL
+
+        %assign sep 10
+%macro writereg 2
+        mov rcx, [r12+%2]
+        cmp rcx, 0xffdead
+        je %%ffdead
+        cmp rcx, 0xdddead
+        je %%dddead
+        cmp rcx, 0xaadead
+        je %%aadead
+        WriteLit STDOUT, sep, %1, ' 0x'
+        fcall WriteHex, STDOUT, rcx
+        jmp %%done
+%%ffdead:
+        WriteLit STDOUT, sep, %1, ' -----fun dead-----'
+        jmp %%done
+%%dddead:
+        WriteLit STDOUT, sep, %1, ' -----ret dead-----'
+        jmp %%done
+%%aadead:
+        WriteLit STDOUT, sep, %1, ' -----arg dead-----'
+        jmp %%done
+%%done:
+        %if sep = 9
+          %assign sep 10
+        %else
+          %assign sep 9
+        %endif
+%endmacro
+        writereg 'rax', 112
+        writereg 'rbx', 104
+        writereg 'rcx', 96
+        writereg 'rdx', 88
+        writereg 'rsi', 80
+        writereg 'rdi', 72
+        writereg 'rbp', 0
+        WriteLit STDOUT, 9, 'rsp 0x'
+        fcall WriteHex, STDOUT, r12
+        %assign sep 10
+        writereg ' r8', 64
+        writereg ' r9', 56
+        writereg 'r10', 48
+        writereg 'r11', 40
+        writereg 'r12', 32
+        writereg 'r13', 24
+        writereg 'r14', 16
+        writereg 'r15', 8
+        WriteLit STDOUT, NL, NL
+
         mov r12, [r12]
         jmp .loop
 .done:
@@ -158,8 +210,8 @@ WriteHex:
         mov [r8], bl
         shr rax, 4
         ;; Check if we're done already
-        cmp rax, 0
-        je .done
+        ;cmp rax, 0
+        ;je .done
         %endrep
 
 .done:
@@ -245,10 +297,10 @@ __GetChr_Fail:
 %define Sigaction_sa_flags 8
 %define Sigaction_sa_restorer 16
 %define Sigaction_sa_mask 24
-%define SizeOfSigset 128         ; Seems unnecessarially big
-%define Sig_MAGIC_FLAGS 67108864 ; ???
+%define SizeOfSigset 128          ; Seems unnecessarially big
+%define Sig_MAGIC_FLAGS 0x4000000 ; ???
 
-        section .data
+        section .rodata
 SigSEGVHandler:
         dq SegvHandler
         dq Sig_MAGIC_FLAGS
@@ -257,7 +309,11 @@ SigSEGVHandler:
 
         section .text
 SegvHandler:
-        Panic 101, 'Received SIGSEGV - aborting.', NL
+        WriteLit STDOUT, 'Received SIGSEGV -- Aborting with backtrace', NL
+%ifdef BACKTRACE
+        fcall DumpBacktrace
+%endif
+        fcall Exit, 101
 
 __restore_rt:
         mov rax, SYS_RT_SIGRETURN

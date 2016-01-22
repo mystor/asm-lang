@@ -291,7 +291,7 @@ struct TypeFunc                 ; XXX: Actually implement function ptrs
         field func
 endstruct Type
 
-        section .data
+        section .rodata
 I64_type:
         dq TYPE_INT
         dq 1

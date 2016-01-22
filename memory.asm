@@ -53,8 +53,8 @@ MemEq:
 __MemEq_Loop:
         cmp r14, 0
         je __MemEq_Eq
-        mov BYTE [r12], al
-        mov BYTE [r13], bl
+        mov al, BYTE [r12]
+        mov bl, BYTE [r13]
         cmp al, bl
         jne __MemEq_Neq
         add r12, 1
@@ -171,7 +171,7 @@ __Realloc_Recent:               ; Try to re-use old allocation
         lea rbx, [r12+r13]
         fcall MemSet, 0, rbx, rax
 __Realloc_NoChange:
-        fnret r12
+        fnret r12, rbx
 
 ;;; Allocate a full page from the OS with mmap
 AllocNewPage:
@@ -226,7 +226,7 @@ __ExtendArr_Fits:
         lea rbx, [r12+rax]      ; Index of new array elt in rbx
         add rax, r13            ; Increment len property
         mov [r12+Array_len], rax
-        fnret r12               ; ptr to new elt in rbx!
+        fnret r12, rbx          ; ptr to new elt in rbx!
 __ExtendArr_Resize:
         mov rax, [r12+Array_heap]     ; Target Heap
         lea rbx, [r12-Array_HeadSize] ; Allocation Pointer
@@ -246,7 +246,7 @@ PushChrArr:
         fn r12, r13             ; r12 = array, r13 = char
         fcall ExtendArr, r12, 1
         mov BYTE [rbx], r13b
-        fnret rax
+        fnret rax, rbx
 
 ;;; Seals an array, removing its header, and attempting to free any un-used space
 ;;; Returns a pointer to the newly-sealed array
@@ -269,7 +269,7 @@ SealArr:
         sub rax, r13                  ; Remove useful size
         lea rbx, [r12+r13]            ; Get end of useful data
         fcall Free, r15, rbx, rax
-        fnret r12
+        fnret r12, rbx
 
 ;;; Add bytes to the end of the array such that it is 8-byte aligned
 AlignArr:

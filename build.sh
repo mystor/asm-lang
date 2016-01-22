@@ -7,26 +7,9 @@ function build() {
     { set +x; } 2> /dev/null # Disable logging
 }
 
-function run() {
-    set -x
-    ./asmcc examples/test.c
-}
-
-function run_with_debugger() {
-    set -x
-    gdb --args asmcc examples/test.c
-}
-
-function run_with_backtrace() {
-    set -x
-    # Use btparse.pl to replace the backtrace lines
-    ./asmcc examples/test.c | perl btparse.pl
-}
-
 # defaults
 RUN=yes
 DEBUG=yes
-DEBUGGER=no
 BACKTRACE=yes
 ASMFLAGS="-w+all -f elf64"
 
@@ -38,9 +21,6 @@ for ARG in $*; do
         RUN=no
         DEBUG=no
         BACKTRACE=no
-    fi
-    if [ "$ARG" = "--debug" ]; then
-        DEBUGGER=yes
     fi
 done
 
@@ -55,11 +35,9 @@ fi
 # Debug Build & Run
 build
 if [ $RUN = yes ]; then
-    if [ $DEBUGGER = yes ]; then
-        run_with_debugger
-    elif [ $BACKTRACE = yes ]; then
-        run_with_backtrace
+    if [ $BACKTRACE = yes ]; then
+        rr ./asmcc examples/test.c | perl btparse.pl
     else
-        run
+        rr ./asmcc examples/test.c
     fi
 fi

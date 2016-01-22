@@ -84,6 +84,12 @@ TyckMkCast:
 .invalid:
         Panic 101, 'Invalid type cast', NL
 
+;;; Returns 2 values, rax = new lhs, rbx = new rhs
+;;; Will insert casts to transform the values into a common value
+TyckCommonValue:
+        fn r12, r13             ; r12 = lhs, r13 = rhs
+
+
 ;;; Check if two types are equal
 TypeEq:
         fn r12, r13
@@ -126,8 +132,8 @@ TypeckInit:
         fnret
 
 TypeckAddVar:
-        fn r12, r13             ; r12 = var, r13 = context
-        fcall LookupOrInsertByKey, r13, [r12+Decl_name]
+        fn r12, r13             ; r12 = context, r13 = var
+        fcall LookupOrInsertByKey, r12, [r13+Decl_name]
         cmp QWORD [rax], 0
         je .first
 .redef:
@@ -270,15 +276,48 @@ TypeckExpr:
         mov rax, [r12+ExprBinOp_op]
         enumjmp OP, rax
 
+.OP_ADDASSIGN:
+        ; Result of assignment is always an lvalue
+        mov QWORD [r12+ExprBinOp_lvalue], 1
+        mov rax, [r12+ExprBinOp_right]
+        mov rax, [rax+Expr_typeof]
+        cmp QWORD [rax+Type_variant], TYPE_PTR
+        je ._OP_PLUS_right_pointer
+.OP_SUBASSIGN:
+        ; Result of assignment is always an lvalue
+        mov QWORD [r12+ExprBinOp_lvalue], 1
+        ; SUB is only allowed to have lhs be the pointer
+        mov rax, [r12+ExprBinOp_left]
+        mov rax, [rax+Expr_typeof]
+        cmp QWORD [rax+Type_variant], TYPE_PTR
+        je ._OP_PLUSMINUS_pointer
+.OP_MULASSIGN:
+.OP_DIVASSIGN:
+.OP_MODASSIGN:
+.OP_BSLASSIGN:
+.OP_BSRASSIGN:
+.OP_BANDASSIGN:
+.OP_BXORASSIGN:
+.OP_BORASSIGN:
+        mov rcx, [r12+ExprBinOp_left]
+        mov rcx, [rax+Expr_typeof]
+        ;; Cast rhs to lhs's type
+        fcall TyckMkCast, [r12+ExprBinOp_right], rcx
+        mov [r12+ExprBinOp_right], rax
+        mov QWORD [r12+ExprBinOp_lvalue], 1 ; lvalue
+        mov [r12+ExprBinOp_typeof], rcx ; type of lhs
+        fnret rcx
+
 .OP_PLUS:
 .OP_MINUS:
         mov rax, [r12+ExprBinOp_left]
         mov rax, [rax+Expr_typeof]
         cmp QWORD [rax+Type_variant], TYPE_PTR
-        ;je ._OP_ADDSUB_pointer
-
-        ; It's not pointer/integer, so off
-        ; XXX: Pointer / integer
+        je ._OP_PLUSMINUS_pointer
+        mov rax, [r12+ExprBinOp_right]
+        mov rax, [rax+Expr_typeof]
+        cmp QWORD [rax+Type_variant], TYPE_PTR
+        je ._OP_PLUSMINUS_pointer
 .OP_MUL:
 .OP_DIV:
 .OP_MOD:
@@ -299,6 +338,9 @@ TypeckExpr:
         ; Unify integer arguments w/ casts
 ._OP_ARITH_notint:
         Panic 101, 'Cannot perform operation on non-int value', NL
+._OP_PLUS_right_pointer:
+._OP_PLUSMINUS_pointer:
+        mov 
 .OP_GT:
 .OP_LT:
 .OP_GTE:
@@ -311,16 +353,6 @@ TypeckExpr:
 .OP_OR:
         ; Unify integer arguments to I64. Result I64
 .OP_ASSIGN:
-.OP_ADDASSIGN:
-.OP_SUBASSIGN:
-.OP_MULASSIGN:
-.OP_DIVASSIGN:
-.OP_MODASSIGN:
-.OP_BSLASSIGN:
-.OP_BSRASSIGN:
-.OP_BANDASSIGN:
-.OP_BXORASSIGN:
-.OP_BORASSIGN:
         ; Assignments
 .OP_ANDTHEN:
         mov rax, [r12+ExprBinOp_right]

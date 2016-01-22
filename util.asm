@@ -40,20 +40,30 @@
 ;;; Call a function
 %macro fcall 1
         call %1
+        mov r8, 0xffdead
+        mov r9, 0xffdead
+        mov r10, 0xffdead
+        mov r11, 0xffdead
 %endmacro
 %macro fcall 2
         mbmov r8, %2
+        mov r9, 0xffdead
+        mov r10, 0xffdead
+        mov r11, 0xffdead
         call %1
 %endmacro
 %macro fcall 3
         mbmov r8, %2
         mbmov r9, %3
+        mov r10, 0xffdead
+        mov r11, 0xffdead
         call %1
 %endmacro
 %macro fcall 4
         mbmov r8, %2
         mbmov r9, %3
         mbmov r10, %4
+        mov r11, 0xffdead
         call %1
 %endmacro
 %macro fcall 5
@@ -64,42 +74,110 @@
         call %1
 %endmacro
 
-;;; Declare a fn
-%macro fn 0
-        mov rax, $              ; Addr of start of fn
-        multipush r12, r13, r14, r15, rcx, rdx
-        push rax                ; Address of start of function
-        push rbp
+%macro pushgarb 1
+        push %1
+        mov %1, 0xaadead
+%endmacro
+
+%macro fpushregs 0
+        push rax                ; [rbp+112]
+        push rbx                ; [rbp+104]
+        pushgarb rcx            ; [rbp+96]
+        pushgarb rdx            ; [rbp+88]
+        pushgarb rsi            ; [rbp+80]
+        pushgarb rdi            ; [rbp+72]
+        push r8                 ; [rbp+64]
+        push r9                 ; [rbp+56]
+        push r10                ; [rbp+48]
+        push r11                ; [rbp+40]
+        pushgarb r12            ; [rbp+32]
+        pushgarb r13            ; [rbp+24]
+        pushgarb r14            ; [rbp+16]
+        pushgarb r15            ; [rbp+8]
+        push rbp                ; [rbp]
+
         mov rbp, rsp
 %endmacro
+%macro fpopregs 0
+        pop rbp
+        pop r15
+        pop r14
+        pop r13
+        pop r12
+        pop r11
+        pop r10
+        pop r9
+        pop r8
+        pop rdi
+        pop rsi
+        pop rdx
+        pop rcx
+        add rsp, 16             ; rax, rbp
+%endmacro
+
+;;; Declare a fn
+%macro fn 0
+        fpushregs
+        xor r8, r8
+        xor r9, r9
+        xor r10, r10
+        xor r11, r11
+._fn_body:
+%endmacro
 %macro fn 1
-        fn
+        fpushregs
         mbmov %1, r8
+        xor r9, r9
+        xor r10, r10
+        xor r11, r11
+._fn_body:
 %endmacro
 %macro fn 2
-        fn %1
+        fpushregs
+        mbmov %1, r8
         mbmov %2, r9
+        xor r10, r10
+        xor r11, r11
+._fn_body:
 %endmacro
 %macro fn 3
-        fn %1, %2
+        fpushregs
+        mbmov %1, r8
+        mbmov %2, r9
         mbmov %3, r10
+        xor r11, r11
+._fn_body:
 %endmacro
 %macro fn 4
-        fn %1, %2, %3
+        fpushregs
+        mbmov %1, r8
+        mbmov %2, r9
+        mbmov %3, r10
         mbmov %4, r11
+._fn_body:
 %endmacro
 
 ;;; Return from a function
 %macro fnret 0
+        mov rax, 0xdddead
+        mov rbx, 0xdddead
         mov rsp, rbp
-        pop rbp
-        add rsp, 8              ; Pop off the start addr of function
-        multipop r12, r13, r14, r15, rcx, rdx
+        fpopregs
         ret
 %endmacro
 %macro fnret 1
         mov rax, %1
-        fnret
+        mov rbx, 0xdddead
+        mov rsp, rbp
+        fpopregs
+        ret
+%endmacro
+%macro fnret 2
+        mov rax, %1
+        mov rbx, %2
+        mov rsp, rbp
+        fpopregs
+        ret
 %endmacro
 
 ;;; Allocating stack locals

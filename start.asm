@@ -16,13 +16,16 @@
 
         section .text
         global _start
+        nop
 _start:
         loadargs
 
         ;; Set up base of stack for backtraces
-        push QWORD _start
-        push QWORD 0
-        mov rbp, rsp
+        ;; We have to add a bunch of garbage here... unfortunately
+        call .__PROG_START__
+.__PROG_START__:
+        mov rbp, 0
+        fn
 
 %ifdef BACKTRACE
         ;; Hook up the segv handler
@@ -61,6 +64,7 @@ _start:
         je .IncorrectArgValue
         mov [chr_infile], rax
 
+        fcall TypeckInit
 .ParsePrintItem:
         fcall PeekTokType
         cmp rax, TOKEN_EOF
@@ -84,24 +88,5 @@ _start:
         Panic 101, 'Incorrect Argument Value', NL
 .SigHandlerFailed:
         fcall WriteDec, rax
-        Panic 101, NL, 'Signal handler Failed to Attach', NL
-
-; ASDHASDHKSAD:                   ; Testing with generating executables
-;         mov rax, SYS_OPEN
-;         mov rdi, foo
-;         mov rsi, O_WRONLY | O_TRUNC | O_CREAT
-;         mov rdx, S_EXECUTABLE
-;         syscall
-
-;         mov r15, rax
-;         fcall ElfInit
-;         fcall ElfWriteStd
-;         fcall ElfSetStart
-;         fcall ElfWriteProg
-;         fcall ElfWrite, r15
-
-;         mov rax, SYS_CLOSE
-;         mov rdi, r15
-;         syscall
-
-;         Panic 0, "DONE", NL
+        Panic 101, 'Signal handler Failed to Attach', NL
+        nop
