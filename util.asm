@@ -79,45 +79,68 @@
         mov %1, 0xaadead
 %endmacro
 
-%macro fpushregs 0
-        push rax                ; [rbp+112]
-        push rbx                ; [rbp+104]
-        pushgarb rcx            ; [rbp+96]
-        pushgarb rdx            ; [rbp+88]
-        pushgarb rsi            ; [rbp+80]
-        pushgarb rdi            ; [rbp+72]
-        push r8                 ; [rbp+64]
-        push r9                 ; [rbp+56]
-        push r10                ; [rbp+48]
-        push r11                ; [rbp+40]
-        pushgarb r12            ; [rbp+32]
-        pushgarb r13            ; [rbp+24]
-        pushgarb r14            ; [rbp+16]
-        pushgarb r15            ; [rbp+8]
-        push rbp                ; [rbp]
+%define BPrax 112
+%define BPrbx 104
+%define BPrcx 96
+%define BPrdx 88
+%define BPrsi 80
+%define BPrdi 72
+%define BPr8 64
+%define BPr9 56
+%define BPr10 48
+%define BPr11 40
+%define BPr12 32
+%define BPr13 24
+%define BPr14 16
+%define BPr15 8
+%define BPrbp 0
 
+%define BPframesize 120
+
+PushRegs:
+        sub rsp, BPframesize-8
+        mov [rsp+BPrbp], rbp
+        mov [rsp+BPr15], r15
+        mov [rsp+BPr14], r14
+        mov [rsp+BPr13], r13
+        mov [rsp+BPr12], r12
+        mov [rsp+BPr11], r11
+        mov [rsp+BPr10], r10
+        mov [rsp+BPr9], r9
+        mov [rsp+BPr8], r8
+        mov [rsp+BPrdi], rdi
+        mov [rsp+BPrsi], rsi
+        mov [rsp+BPrdx], rdx
+        mov [rsp+BPrcx], rcx
+        mov [rsp+BPrbx], rbx
+        mov rcx, [rsp+BPrax]    ; load return address
+        mov [rsp+BPrax], rax
         mov rbp, rsp
-%endmacro
-%macro fpopregs 0
-        pop rbp
-        pop r15
-        pop r14
-        pop r13
-        pop r12
-        pop r11
-        pop r10
-        pop r9
-        pop r8
-        pop rdi
-        pop rsi
-        pop rdx
+        push rcx
+        ret
+
+PopRegs:
         pop rcx
-        add rsp, 16             ; rax, rbp
-%endmacro
+        mov [rsp+BPrax], rcx
+        mov rbp, [rsp+BPrbp]
+        mov r15, [rsp+BPr15]
+        mov r14, [rsp+BPr14]
+        mov r13, [rsp+BPr13]
+        mov r12, [rsp+BPr12]
+        mov r11, [rsp+BPr11]
+        mov r10, [rsp+BPr10]
+        mov r9, [rsp+BPr9]
+        mov r8, [rsp+BPr8]
+        mov rdi, [rsp+BPrdi]
+        mov rsi, [rsp+BPrsi]
+        mov rdx, [rsp+BPrdx]
+        mov rcx, [rsp+BPrcx]
+        add rsp, BPframesize-8
+        ret
 
 ;;; Declare a fn
 %macro fn 0
-        fpushregs
+        call PushRegs
         xor r8, r8
         xor r9, r9
         xor r10, r10
@@ -125,7 +148,7 @@
 ._fn_body:
 %endmacro
 %macro fn 1
-        fpushregs
+        call PushRegs
         mbmov %1, r8
         xor r9, r9
         xor r10, r10
@@ -133,7 +156,7 @@
 ._fn_body:
 %endmacro
 %macro fn 2
-        fpushregs
+        call PushRegs
         mbmov %1, r8
         mbmov %2, r9
         xor r10, r10
@@ -141,7 +164,7 @@
 ._fn_body:
 %endmacro
 %macro fn 3
-        fpushregs
+        call PushRegs
         mbmov %1, r8
         mbmov %2, r9
         mbmov %3, r10
@@ -149,7 +172,7 @@
 ._fn_body:
 %endmacro
 %macro fn 4
-        fpushregs
+        call PushRegs
         mbmov %1, r8
         mbmov %2, r9
         mbmov %3, r10
@@ -162,21 +185,21 @@
         mov rax, 0xdddead
         mov rbx, 0xdddead
         mov rsp, rbp
-        fpopregs
+        call PopRegs
         ret
 %endmacro
 %macro fnret 1
         mov rax, %1
         mov rbx, 0xdddead
         mov rsp, rbp
-        fpopregs
+        call PopRegs
         ret
 %endmacro
 %macro fnret 2
         mov rax, %1
         mov rbx, %2
         mov rsp, rbp
-        fpopregs
+        call PopRegs
         ret
 %endmacro
 

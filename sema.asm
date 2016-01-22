@@ -340,7 +340,6 @@ TypeckExpr:
         Panic 101, 'Cannot perform operation on non-int value', NL
 ._OP_PLUS_right_pointer:
 ._OP_PLUSMINUS_pointer:
-        mov 
 .OP_GT:
 .OP_LT:
 .OP_GTE:
