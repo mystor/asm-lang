@@ -82,13 +82,13 @@ ParseItem:
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
         ; We got a { after a non struct type - var_def.
-        Expect TOKEN_NAME
+        Expect TOKEN_IDENT
 
 .func_def:
         Expect TOKEN_LPAREN
         fcall Alloc, Heap, SizeOfTypeFunc
         mov r12, rax
-        mov [r12+TypeFunc_variant], TYPE_FUNC
+        mov QWORD [r12+TypeFunc_variant], TYPE_FUNC
         mov [r12+TypeFunc_returns], r14 ; XXX: Treat void differently?
         fcall PeekTok       ; Handle empty params lists
         cmp rax, TOKEN_RPAREN
