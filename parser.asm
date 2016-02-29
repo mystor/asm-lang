@@ -60,34 +60,23 @@ ParseItem:
         Panic 100, "Global var definitions NOT SUPPORTED YET", NL
 
 .struct_def:
+;;; XXX: Implement
         fcall Expect, TOKEN_LBRACE
         cmp QWORD [r14+Type_variant], TYPE_STRUCT
         jne .expected_name
-        fcall Alloc, Heap, SizeOfItemStruct
-        mov rcx, rax
-        mov QWORD [rcx+ItemStruct_variant], ITEM_STRUCT
-        mov rax, [r14+TypeStruct_name]
-        mov [rcx+ItemStruct_name], rax
-        fcall NewArr, Heap, 8*8
-        mov r15, rax
+        mov rax, [r14+TypeStruct_name] ; Struct name
 .fieldsloop:
         fcall PeekTok
         cmp rax, TOKEN_RBRACE
         je .fieldsloop_done
-        fcall Alloc, Heap, SizeOfField
-        mov r12, rax
         fcall ParseType
-        mov [r12+Field_typeof], rax
         fcall Expect, TOKEN_IDENT
-        mov [r12+Field_name], rax
-        fcall ExtendArr, r15, 8
-        mov r15, rax
-        mov [rbx], r12          ; Save the field
+        ; Save the field info
         jmp .fieldsloop
 .fieldsloop_done:
-        mov [rcx+ItemStruct_fields], r15
         fcall Expect, TOKEN_RBRACE
         fcall Expect, TOKEN_SEMI
+        Panic 100, "Unexpected struct definition"
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
         WriteLit STDOUT, 'Expected NAME'
@@ -95,32 +84,12 @@ ParseItem:
 
 .func_def:
         fcall Expect, TOKEN_LPAREN
-        fcall Alloc, Heap, SizeOfItemFunc
-        mov rcx, rax
-        mov QWORD [rcx+ItemFunc_variant], ITEM_FUNC
-        mov QWORD [rcx+ItemFunc_dvariant], DECL_FUNC
-        fcall Alloc, Heap, SizeOfTypeFunc
-        mov QWORD [rax+TypeFunc_variant], TYPE_FUNC
-        mov [rax+TypeFunc_func], rcx
-        mov [rcx+ItemFunc_typeof], rax
-        mov [rcx+ItemFunc_name], r15
-        mov [rcx+ItemFunc_returns], r14
-        fcall NewArr, Heap, 8*8
-        mov r15, rax
         fcall PeekTok       ; Handle empty params lists
         cmp rax, TOKEN_RPAREN
         je .paramsdone
 .paramsloop:
-        fcall Alloc, Heap, SizeOfParam
-        mov r12, rax
-        mov QWORD [r12+Param_dvariant], DECL_PARAM
         fcall ParseType
-        mov [r12+Param_typeof], rax
         fcall Expect, TOKEN_IDENT
-        mov [r12+Param_name], rax
-        fcall ExtendArr, r15, 8
-        mov r15, rax
-        mov [rbx], r12          ; Save the arg
         fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .paramsdone
@@ -128,16 +97,9 @@ ParseItem:
         jmp .paramsloop
 .paramsdone:
         fcall Expect, TOKEN_RPAREN
-        mov [rcx+ItemFunc_params], r15
-        fcall ParseStmt
-        mov [rcx+ItemFunc_body], rax
-        ;; Compound statements are the only legal function bodies
-        cmp QWORD [rax+Stmt_variant], STMT_COMPOUND
-        jne .bad_body_type
+        fcall ParseCompoundStmt
+        Panic 100, "Unexpected function definition"
         fnret rcx
-.bad_body_type:
-        Panic 101, 'Unexpected invalid body type', NL
-
 
 ParseType:
         fn
@@ -299,21 +261,15 @@ ParseStmt:
         ; XXX: Allocate space on stack for this variable
 
         ; XXX: Implement
-        fcall Alloc, Heap, SizeOfStmtVar
-        mov rcx, rax
-        mov QWORD [rcx+StmtVar_variant], STMT_VAR
-        mov QWORD [rcx+StmtVar_dvariant], DECL_LOCAL
         fcall ParseType
-        mov [rcx+StmtVar_typeof], rax
         fcall Expect, TOKEN_IDENT
-        mov [rcx+StmtVar_name], rax
         fcall PeekTok
         cmp rax, TOKEN_EQ
         jne .vardecl_done
         fcall Expect, TOKEN_EQ
         fcall ParseExpr
-        mov [rcx+StmtVar_init], rax
 .vardecl_done:
+        Panic 100, "Unexpected vardecl"
         fnret rcx
 
 .ifstmt:
@@ -359,6 +315,19 @@ ParseStmt:
         fnret
 
 .compoundstmt:
+        fcall ParseCompoundStmt
+        fnret
+
+.returnstmt:
+        fcall Expect, TOKEN_RETURN
+        fcall ParseExpr
+        EmitLit
+        ret
+        EndEmitLit
+        fnret
+
+ParseCompoundStmt:
+        fn
         fcall Expect, TOKEN_LBRACE
         ; XXX: Push a new scope
 .compoundloop:
@@ -371,14 +340,6 @@ ParseStmt:
 .compounddone:
         ; XXX: Pop a scope
         fcall Expect, TOKEN_RBRACE
-        fnret
-
-.returnstmt:
-        fcall Expect, TOKEN_RETURN
-        fcall ParseExpr
-        EmitLit
-        ret
-        EndEmitLit
         fnret
 
 ;;; name, nextlvl
@@ -594,6 +555,7 @@ ParseTrailer:
         je .indirect
         fnret r12
 
+        ;; XXX: This needs to do the right thing
 .call:                          ; XXX: IMPLEMENT
         fcall Expect, TOKEN_LPAREN
         Panic 101, 'Unsupported call'
