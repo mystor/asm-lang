@@ -305,6 +305,12 @@ __ElfFindSymbol_Found:
 SymbolMonotonic: dq 0
 
         section .text
+%macro ElfLitUniqueSymbol 1
+        [section .rodata]
+        %%l: db %1, 0
+        __SECT__
+        fcall ElfUniqueSymbol, %%l
+%endmacro
 ;;; Generate a unique symbol!?!?!?!?!?!?!?
 ElfUniqueSymbol:
         fn r12                  ; r12 = symbol name hint
@@ -336,6 +342,22 @@ ElfUniqueSymbol:
         mov [symtab_arr], rax
         mov DWORD [rbx+ST_name], r14d
         fnret rbx
+
+ElfSetTextSymbol:
+        fn r12                  ; r12 = symbol
+        mov rax, [text_arr]
+        mov r13, [rax+Array_len]
+        add r13, ELF_text_start
+        mov DWORD [r13+ST_shndx], SHN_Text
+        mov QWORD [r13+ST_value], r12
+        fnret r12
+
+ElfWriteText:
+        fn r12, r13             ; r12 = ptr, r13 = len
+        fcall ExtendArr, [text_arr], r13
+        mov [text_arr], rax
+        fcall MemCpy, r12, rbx, r13
+        fnret
 
 ;;; XXX: Testing program
 ElfWriteProg:

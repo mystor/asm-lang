@@ -1,4 +1,5 @@
 ;;; -*- nasm -*-
+%push asmcc                     ; Make sure that all scopes are popped
 %defstr REVISION %!REVISION
 
 %include "util.asm"
@@ -9,9 +10,11 @@
 ;;; Compiler stages
 %include "lexer.asm"
 %include "ast.asm"
-%include "parser.asm"
-%include "sema.asm"
+;%include "sema.asm"
 %include "bin.asm"
+%include "scope.asm"
+%include "emit.asm"
+%include "parser.asm"
 
 
         section .text
@@ -64,20 +67,23 @@ _start:
         je .IncorrectArgValue
         mov [chr_infile], rax
 
-        fcall TypeckInit
+        ;fcall TypeckInit
+        fcall StackInit
+        fcall ElfInit
 .ParsePrintItem:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_EOF
         je .Exit
 
         fcall ParseItem
-        mov r12, rax
-        fcall WriteItem, r12
-        fcall TypeckItem, r12
+        ;mov r12, rax
+        ;fcall WriteItem, r12
+        ;fcall TypeckItem, r12
         WriteLit STDOUT, NL
 
         jmp .ParsePrintItem
 .Exit:
+        fcall ElfWrite, 0       ; XXX: FIXME
         fcall Exit, 0
 .IncorrectArgLen:
         fcall WriteDec, [argc]
@@ -90,3 +96,4 @@ _start:
         fcall WriteDec, rax
         Panic 101, 'Signal handler Failed to Attach', NL
         nop
+%pop asmcc

@@ -509,29 +509,18 @@ tok_cache:
 
         section .text
 PeekTok:
-        fn r12                  ; r12 = OUT token
-        cmp r12, 0              ; If r12 is null, abort
-        je .Exit
+        fn
         cmp QWORD [tok_cache + Token_variant], TOKEN_INVALID
         jne .CacheHit
 .CacheMiss:
         fcall ReadTok, tok_cache
 .CacheHit:
-        fcall Token_copy, tok_cache, r12
-.Exit:
-        fnret
-
-PeekTokType:
-        fn
-        alloca SizeOfToken
-        mov r13, rax
-        fcall PeekTok, r13
-        fnret [r13+Token_variant]
+        fnret [tok_cache.type], [tok_cache.data]
 
 EatTok:
-        fn r12                  ; r12 = OUT token
-        fcall PeekTok, r12
-        ;fcall WriteTOKEN, [r12]
-        ;WriteLit STDOUT, NL
+        fn
+        fcall PeekTok
+        mov r12, rax
+        mov r13, rbx
         fcall ReadTok, tok_cache
-        fnret
+        fnret r12, r13

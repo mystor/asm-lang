@@ -1,249 +1,15 @@
 ;;; -*- nasm -*-
 
-;;; Declarations
-;;; EX: Param, ItemFunc, ItemVar, ExprVar
-struct Decl
-        field variant
-        field name
-        field typeof
-        field dvariant
-endstruct
-%undef Decl_variant             ; Shouldn't access
-%undef SizeOfDecl               ; Don't instantiate
-
-enum DECL
-        opt FUNC
-        opt PARAM
-        opt LOCAL
-        opt GLOBAL
-endenum
-
-;;; Items
-struct Item
-        field variant
-        field name
-endstruct
-%undef SizeOfItem               ; Don't instantiate
-
-enum ITEM
-        opt FUNC
-        opt STRUCT
-        ; opt VAR
-endenum
-
-struct ItemFunc                 ; DECL
-        field variant
-        field name
-        field typeof
-        field dvariant
-        field params
-        field returns
-        field body
-endstruct Item, Decl
-
-struct Param                    ; DECL
-        field variant           ; for compat with Decl
-        field name
-        field typeof
-        field dvariant
-endstruct Decl
-%undef Param_variant            ; Shouldn't access
-
-struct ItemStruct
-        field variant
-        field name
-        field fields
-endstruct Item
-
-struct Field
-        field name
-        field typeof
+;;; Value
+struct Value
+        field alloc
+        field type
 endstruct
 
-struct ItemVar
-        field variant
-        field name
-        field typeof
-        field dvariant
-        field init
-endstruct Item
-
-;;; STMTs
-struct Stmt
-        field variant
-endstruct
-%undef SizeOfStmt               ; Don't instantiate
-
-enum STMT
-        opt VAR
-        opt EXPR
-        opt IF
-        opt WHILE
-        opt COMPOUND
-        opt RETURN
-        ;opt FOR
-        ;opt SWITCH
+enum ALLOC
+        opt RVALUE
+        opt LVALUE
 endenum
-
-struct StmtVar
-        field variant
-        field name
-        field typeof
-        field dvariant
-        field init
-endstruct Stmt, Decl
-
-struct StmtExpr
-        field variant
-        field expr
-endstruct Stmt
-
-struct StmtIf
-        field variant
-        field cond
-        field cons
-        field alt
-endstruct Stmt
-
-struct StmtWhile
-        field variant
-        field cond
-        field body
-endstruct Stmt
-
-struct StmtCompound
-        field variant
-        field stmts
-endstruct Stmt
-
-struct StmtReturn
-        field variant
-        field value
-endstruct Stmt
-
-;;; Exprs
-struct Expr
-        field variant
-        field typeof
-        field lvalue
-endstruct
-%undef SizeOfExpr               ; Don't instantiate
-
-enum EXPR
-        opt INTEGER
-        opt REF
-        opt BINARY
-        opt UNARY
-        opt CALL
-        opt MEMBER
-        opt CAST
-        opt SIZEOF
-endenum
-
-struct ExprInt
-        field variant
-        field typeof
-        field lvalue
-        field value
-endstruct Expr
-
-struct ExprRef
-        field variant
-        field typeof
-        field lvalue
-        field name
-        field decl
-endstruct Expr
-
-enum OP
-        opt PLUS
-        opt MINUS
-        opt MUL
-        opt DIV
-        opt MOD
-        opt BSL
-        opt BSR
-        opt BOR
-        opt BAND
-        opt BXOR
-        opt GT
-        opt LT
-        opt GTE
-        opt LTE
-        opt EQ
-        opt NE
-        opt AND
-        opt OR
-        opt ASSIGN
-        opt ADDASSIGN
-        opt SUBASSIGN
-        opt MULASSIGN
-        opt DIVASSIGN
-        opt MODASSIGN
-        opt BSLASSIGN
-        opt BSRASSIGN
-        opt BANDASSIGN
-        opt BXORASSIGN
-        opt BORASSIGN
-        opt ANDTHEN
-endenum
-
-struct ExprBinOp
-        field variant
-        field typeof
-        field lvalue
-        field op
-        field left
-        field right
-endstruct Expr
-
-enum UNOP
-        opt NEGATE
-        opt DEREF
-        opt ADDROF
-        opt BNOT
-        opt NOT
-endenum
-
-struct ExprUnOp
-        field variant
-        field typeof
-        field lvalue
-        field op
-        field target
-endstruct Expr
-
-struct ExprCall
-        field variant
-        field typeof
-        field lvalue
-        field target
-        field args
-endstruct Expr
-
-struct ExprMember
-        field variant
-        field typeof
-        field lvalue
-        field operand
-        field name
-        field field
-endstruct Expr
-
-struct ExprCast
-        field variant
-        field typeof
-        field lvalue
-        field target
-        field typetarget
-endstruct Expr
-
-struct ExprSizeof
-        field variant
-        field typeof
-        field lvalue
-        field target
-endstruct Expr
 
 ;;; Type
 struct Type
@@ -296,202 +62,53 @@ I64_type:
         dq TYPE_INT
         dq 1
         dq 8
+I32_type:
+        dq TYPE_INT
+        dq 1
+        dq 4
+I32_value:
+        dq I32_type
+        dq ALLOC_RVALUE
+I64_value:
+        dq I64_type
+        dq ALLOC_RVALUE
 
         section .text
-WriteItem:
-        fn r12
-        mov rax, [r12+Item_variant]
-        enumjmp ITEM, rax
+SizeOfType:
+        fn r12                  ; r12 = type
+        mov rax, [r12+Type_variant]
+        enumjmp TYPE, rax
+.TYPE_INT:
+        fnret [r12+TypeInt_size]
+.TYPE_STRUCT:
+        Panic 101, 'unsupported'
+.TYPE_PTR:
+        fnret 8
+.TYPE_ARRAY:
+        fcall SizeOfType, [r12+TypeArray_target]
+        mov rbx, [r12+TypeArray_length]
+        xor rdx, rdx
+        imul rbx
+        fnret rax
+.TYPE_VOID:
+.TYPE_FUNC:
+        Panic 101, 'Size of unsized type'
+.TYPE_INVALID:
+        Panic 101, 'Unknown type'
 
-.ITEM_FUNC:
-        fcall WriteType, [r12+ItemFunc_returns]
-        WriteLit STDOUT, ' '
-        fcall WriteStr, [r12+ItemFunc_name]
-        WriteLit STDOUT, '('
-        mov r13, [r12+ItemFunc_params]
-        mov r14, 0
-._ITEM_FUNC_paramsloop:
-        cmp r14, [r13+Array_len]
-        je ._ITEM_FUNC_paramsloopdone
-        mov r15, [r13+r14]
-        fcall WriteType, [r15+Param_typeof]
-        WriteLit STDOUT, ' '
-        fcall WriteStr, [r15+Param_name]
-        cmp r14, [r13+Array_len]
-        je ._ITEM_FUNC_paramsloopdone
-        WriteLit STDOUT, ', '
-        add r14, 8
-        jmp ._ITEM_FUNC_paramsloop
-._ITEM_FUNC_paramsloopdone:
-        WriteLit STDOUT, ')', NL
-        fcall WriteStmt, [r12+ItemFunc_body]
-        WriteLit STDOUT, NL
-        fnret
 
-.ITEM_STRUCT:
-        WriteLit STDOUT, 'struct '
-        fcall WriteStr, [r12+ItemStruct_name]
-        WriteLit STDOUT, ' {', NL
-        mov r13, [r12+ItemStruct_fields]
-        mov r14, 0
-._ITEM_STRUCT_fieldsloop:
-        cmp r14, [r13+Array_len]
-        je ._ITEM_STRUCT_fieldsloopdone
-        mov r15, [r13+r14]
-        WriteLit STDOUT, '    '
-        fcall WriteType, [r15+Field_typeof]
-        WriteLit STDOUT, ' '
-        fcall WriteStr, [r15+Field_name]
-        WriteLit STDOUT, ';', NL
-        add r14, 8
-        jmp ._ITEM_STRUCT_fieldsloop
-._ITEM_STRUCT_fieldsloopdone:
-        WriteLit STDOUT, '};', NL
-        fnret
+WrapTypeRValue:
+        fn r12                  ; r12 = type
+        fcall Alloc, Heap, SizeOfValue
+        mov [rax+Value_type], r12
+        mov QWORD [rax+Value_alloc], ALLOC_RVALUE
+        fnret rax
 
-.ITEM_INVALID:
-        Panic 101, 'Invalid Item Variant!', NL
-
-WriteExpr:
-        fn r12
-        WriteLit STDOUT, '<'
-        fcall WriteType, [r12+Expr_typeof]
-        WriteLit STDOUT, ','
-        mov rax, [r12+Expr_variant]
-        enumjmp EXPR, rax
-
-.EXPR_INTEGER:
-        fcall WriteDec, [r12+ExprInt_value]
-        jmp .done
-
-.EXPR_REF:
-        fcall WriteStr, [r12+ExprRef_name]
-        jmp .done
-
-.EXPR_BINARY:
-        fcall WriteExpr, [r12+ExprBinOp_left]
-        WriteLit STDOUT, ' '
-        fcall WriteOP, [r12+ExprBinOp_op]
-        WriteLit STDOUT, ' '
-        fcall WriteExpr, [r12+ExprBinOp_right]
-        jmp .done
-
-.EXPR_UNARY:
-        fcall WriteUNOP, [r12+ExprUnOp_op]
-        WriteLit STDOUT, ' '
-        fcall WriteExpr, [r12+ExprUnOp_target]
-        jmp .done
-
-.EXPR_CALL:
-        fcall WriteExpr, [r12+ExprCall_target]
-        WriteLit STDOUT, '('
-        mov r13, [r12+ExprCall_args]
-        mov r14, 0
-._EXPR_CALL_argsloop:
-        cmp r14, [r13+Array_len]
-        je ._EXPR_CALL_afterargs
-        mov r15, [r13+r14]
-        fcall WriteExpr, r15
-        cmp r14, [r13+Array_len]
-        je ._EXPR_CALL_afterargs
-        WriteLit STDOUT, ', '
-        add r14, 8
-        jmp ._EXPR_CALL_argsloop
-._EXPR_CALL_afterargs:
-        WriteLit STDOUT, ')'
-        jmp .done
-
-.EXPR_MEMBER:
-        fcall WriteExpr, [r12+ExprMember_operand]
-        WriteLit STDOUT, '.'
-        fcall WriteStr, [r12+ExprMember_name]
-        jmp .done
-
-.EXPR_CAST:
-        WriteLit STDOUT, '('
-        fcall WriteType, [r12+ExprCast_typetarget]
-        WriteLit STDOUT, ')'
-        fcall WriteExpr, [r12+ExprCast_target]
-        jmp .done
-
-.EXPR_SIZEOF:
-        WriteLit STDOUT, 'sizeof('
-        fcall WriteType, [r12+ExprSizeof_target]
-        WriteLit STDOUT, ')'
-        jmp .done
-
-.EXPR_INVALID:
-        Panic 101, 'Invalid Expression Type?', NL
-
-.done:
-        WriteLit STDOUT, '>'
-        fnret
-
-WriteStmt:
-        fn r12
-        mov rax, [r12+Stmt_variant]
-        enumjmp STMT, rax
-
-.STMT_VAR:
-        fcall WriteType, [r12+StmtVar_typeof]
-        WriteLit STDOUT, ' '
-        fcall WriteStr, [r12+StmtVar_name]
-        cmp QWORD [r12+StmtVar_init], 0
-        je ._STMT_VAR_noinit
-._STMT_VAR_hasinit:
-        WriteLit STDOUT, ' = '
-        fcall WriteExpr, [r12+StmtVar_init]
-._STMT_VAR_noinit:
-        WriteLit STDOUT, ';'
-        fnret
-
-.STMT_EXPR:
-        fcall WriteExpr, [r12+StmtExpr_expr]
-        WriteLit STDOUT, ';'
-        fnret
-
-.STMT_IF:
-        WriteLit STDOUT, 'if ('
-        fcall WriteExpr, [r12+StmtIf_cond]
-        WriteLit STDOUT, ')'
-        fcall WriteStmt, [r12+StmtIf_cons]
-        cmp QWORD [r12+StmtIf_alt], 0
-        je ._STMT_IF_noalt
-._STMT_IF_alt:
-        WriteLit STDOUT, ' else '
-        fcall WriteStmt, [r12+StmtIf_alt]
-._STMT_IF_noalt:
-        fnret
-
-.STMT_WHILE:
-        WriteLit STDOUT, 'while ('
-        fcall WriteExpr, [r12+StmtWhile_cond]
-        WriteLit STDOUT, ')'
-        fcall WriteStmt, [r12+StmtWhile_body]
-        fnret
-
-.STMT_COMPOUND:
-        WriteLit STDOUT, '{', NL
-        mov r13, [r12+StmtCompound_stmts]
-        mov r14, 0
-._STMT_COMPOUND_stmtloop:
-        cmp r14, [r13+Array_len]
-        je ._STMT_COMPOUND_stmtloopdone
-        fcall WriteStmt, [r13+r14]
-        WriteLit STDOUT, NL
-        add r14, 8
-        jmp ._STMT_COMPOUND_stmtloop
-._STMT_COMPOUND_stmtloopdone:
-        WriteLit STDOUT, '}'
-        fnret
-
-.STMT_RETURN:
-        WriteLit STDOUT, 'return '
-        fcall WriteExpr, [r12+StmtReturn_value]
-        fnret
-
-.STMT_INVALID:
-        Panic 101, 'Invalid Statement Type?', NL
+WrapTypeLValue:
+        fn r12                  ; r12 = type
+        fcall WrapTypeRValue
+        mov QWORD [rax+Value_alloc], ALLOC_LVALUE
+        fnret rax
 
 WriteType:
         fn r12

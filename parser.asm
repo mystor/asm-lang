@@ -1,7 +1,7 @@
 ;;; -*- nasm -*-
 NextTokenIsType:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_UNSIGNED
         je .ok
         cmp rax, TOKEN_SHORT
@@ -22,29 +22,28 @@ NextTokenIsType:
 
 Expect:
         fn r12
-        alloca SizeOfToken
-        mov r13, rax
-        fcall EatTok, r13
-        cmp QWORD [r13+Token_variant], r12
+        fcall EatTok
+        cmp rax, r12
         jne .fail
-        fnret [r13+Token_data]
+        fnret rbx
 .fail:
+        mov r13, rax
         WriteLit STDOUT, 'Expected '
         fcall WriteTOKEN, r12
         WriteLit STDOUT, ', instead found '
-        fcall WriteTOKEN, [r13+Token_variant]
+        fcall WriteTOKEN, r13
         Panic 100, NL
 
 ParseItem:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         ;; XXX: Check for typedef token here?
 
         ;; XXX: TYPEDEF?
         fcall ParseType
         mov r14, rax            ; r14 has return type
 
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_LBRACE
         je .struct_def
 
@@ -52,7 +51,7 @@ ParseItem:
         fcall Expect, TOKEN_IDENT
         mov r15, rax            ; r15 has name
 
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_LPAREN
         je .func_def
 
@@ -72,7 +71,7 @@ ParseItem:
         fcall NewArr, Heap, 8*8
         mov r15, rax
 .fieldsloop:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_RBRACE
         je .fieldsloop_done
         fcall Alloc, Heap, SizeOfField
@@ -87,13 +86,11 @@ ParseItem:
         jmp .fieldsloop
 .fieldsloop_done:
         mov [rcx+ItemStruct_fields], r15
-        fcall EatTok, r13
         fcall Expect, TOKEN_RBRACE
         fcall Expect, TOKEN_SEMI
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
-        WriteLit STDOUT, 'Expected NAME, instead found '
-        fcall WriteTOKEN, [r13+Token_variant] ; XXX: Write to STDOUT?
+        WriteLit STDOUT, 'Expected NAME'
         Panic 100, NL
 
 .func_def:
@@ -110,7 +107,7 @@ ParseItem:
         mov [rcx+ItemFunc_returns], r14
         fcall NewArr, Heap, 8*8
         mov r15, rax
-        fcall PeekTokType       ; Handle empty params lists
+        fcall PeekTok       ; Handle empty params lists
         cmp rax, TOKEN_RPAREN
         je .paramsdone
 .paramsloop:
@@ -124,7 +121,7 @@ ParseItem:
         fcall ExtendArr, r15, 8
         mov r15, rax
         mov [rbx], r12          ; Save the arg
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .paramsdone
         fcall Expect, TOKEN_COMMA
@@ -147,7 +144,7 @@ ParseType:
         fcall ParseTypeAtom
         mov r12, rax
 .loop:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_STAR
         je .pointer
         cmp rax, TOKEN_LBRACE
@@ -183,7 +180,7 @@ ParseType:
         ;; All optionally prefixed by unsigned
 ParseTypeAtom:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_STRUCT
         je .struct_type
         cmp rax, TOKEN_VOID
@@ -197,7 +194,7 @@ ParseTypeAtom:
         mov QWORD [r12+TypeInt_size], 4   ; default size for int
         mov r13, 0                  ; Recently seen modifier
 .int_loop:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_LONG
         je .long_modify
         cmp rax, TOKEN_SHORT
@@ -279,7 +276,7 @@ ParseTypeAtom:
 ;;; Parse a statement from the input stream
 ParseStmt:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_IF
         je .ifstmt
         cmp rax, TOKEN_WHILE
@@ -294,14 +291,14 @@ ParseStmt:
         jne .vardecl
 
 .expr:
-        fcall Alloc, Heap, SizeOfStmtExpr
-        mov rcx, rax
-        mov QWORD [rcx+StmtExpr_variant], STMT_EXPR
         fcall ParseExpr
-        mov [rcx+StmtExpr_expr], rax
-        fnret rcx
+        fnret
 
 .vardecl:
+        fcall ParseType
+        ; XXX: Allocate space on stack for this variable
+
+        ; XXX: Implement
         fcall Alloc, Heap, SizeOfStmtVar
         mov rcx, rax
         mov QWORD [rcx+StmtVar_variant], STMT_VAR
@@ -310,7 +307,7 @@ ParseStmt:
         mov [rcx+StmtVar_typeof], rax
         fcall Expect, TOKEN_IDENT
         mov [rcx+StmtVar_name], rax
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_EQ
         jne .vardecl_done
         fcall Expect, TOKEN_EQ
@@ -321,91 +318,79 @@ ParseStmt:
 
 .ifstmt:
         fcall Expect, TOKEN_IF
-        fcall Alloc, Heap, SizeOfStmtIf
-        mov rcx, rax
-        mov QWORD [rcx+StmtIf_variant], STMT_IF
+        ElfLitUniqueSymbol "if_then"
+        mov r12, rax
+        ElfLitUniqueSymbol "if_else"
+        mov r13, rax
+        ElfLitUniqueSymbol "if_after"
+        mov r14, rax
+
         fcall Expect, TOKEN_LPAREN
-        fcall ParseExpr
-        mov [rcx+StmtIf_cond], rax
+        fcall ParseExpr         ; XXX: Make sure that this is an int
         fcall Expect, TOKEN_RPAREN
+        fcall EmitJz, rax, r13       ; Jump to else if cond false
+        fcall ElfSetTextSymbol, r12
         fcall ParseStmt
-        mov [rcx+StmtIf_cons], rax
-        fcall PeekTokType
+        fcall EmitJmp, r14      ; Body and jump to after
+        fcall ElfSetTextSymbol, r13 ; Else will start here if exists
+        fcall PeekTok
         cmp rax, TOKEN_ELSE
         jne .ifstmt_done
-        fcall Expect, TOKEN_ELSE
         fcall ParseStmt
-        mov [rcx+StmtIf_alt], rax
 .ifstmt_done:
-        fnret rcx
+        fcall ElfSetTextSymbol, r14 ; End of if statement
+        fnret
 
 .whilestmt:
         fcall Expect, TOKEN_WHILE
-        fcall Alloc, Heap, SizeOfStmtWhile
-        mov rcx, rax
-        mov QWORD [rcx+StmtWhile_variant], STMT_WHILE
-        fcall Expect, TOKEN_LPAREN
+        ; Record the start of the expression
+        ElfLitUniqueSymbol "while_start"
+        mov r12, rax            ; The unique start symbol
+        ElfLitUniqueSymbol "while_end"
+        mov r13, rax            ; The unique exit symbol
+        fcall ElfSetTextSymbol, r12
+        fcall Expect, TOKEN_LPAREN ; Condition
         fcall ParseExpr
-        mov [rcx+StmtWhile_cond], rax
+        fcall EmitJnz, rax, r13
         fcall Expect, TOKEN_RPAREN
-        fcall ParseStmt
-        mov [rcx+StmtWhile_body], rax
-        fnret rcx
+        fcall ParseStmt         ; Body and exit point
+        fcall EmitJmp, r12
+        fcall ElfSetTextSymbol, r13 ; Set the exit point
+        fnret
 
 .compoundstmt:
         fcall Expect, TOKEN_LBRACE
-        fcall Alloc, Heap, SizeOfStmtCompound
-        mov rcx, rax
-        mov QWORD [rcx+StmtCompound_variant], STMT_COMPOUND
-        fcall NewArr, Heap, 8*8
-        mov r15, rax
+        ; XXX: Push a new scope
 .compoundloop:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_RBRACE
         je .compounddone
         fcall ParseStmt
-        mov r12, rax
-        fcall ExtendArr, r15, 8
-        mov r15, rax
-        mov [rbx], r12
         fcall Expect, TOKEN_SEMI
         jmp .compoundloop
 .compounddone:
-        mov [rcx+StmtCompound_stmts], r15
+        ; XXX: Pop a scope
         fcall Expect, TOKEN_RBRACE
-        fnret rcx
+        fnret
 
 .returnstmt:
         fcall Expect, TOKEN_RETURN
-        fcall Alloc, Heap, SizeOfStmtReturn
-        mov rcx, rax
-        mov QWORD [rcx+StmtReturn_variant], STMT_RETURN
         fcall ParseExpr
-        mov [rcx+StmtReturn_value], rax
-        fnret rcx
-
-;;; Utility for creating a binary operator
-MkBinOp:
-        fn r12, r13             ; r12 = left, r13 = op
-        fcall Alloc, Heap, SizeOfExprBinOp
-        mov r15, rax
-        mov QWORD [r15+ExprBinOp_variant], EXPR_BINARY
-        mov [r15+ExprBinOp_left], r12
-        mov [r15+ExprBinOp_op], r13
-        fnret r15
+        EmitLit
+        ret
+        EndEmitLit
+        fnret
 
 ;;; name, nextlvl
 %macro start_bopreclvl 2
         %push bopreclvl
-%$lower:
-        fcall %2
-        ret
+        %xdefine %$lower %2
 %1:
         fn
-        call %$lower
+        fcall %$lower
         mov r12, rax
 %$loop:
-        fcall PeekTokType
+        fcall PeekTok
 %endmacro
 %macro binop 2
         cmp rax, %1
@@ -413,23 +398,31 @@ MkBinOp:
         jmp %%after
 %%eq:
         fcall Expect, %1
-        fcall MkBinOp, r12, %2
-        jmp %$rhs
+        fcall EmitPushRax
+        fcall %$lower
+        fcall %2, r12, rax
+        mov r12, rax
+        jmp %$loop
 %%after:
 %endmacro
 %macro end_bopreclvl 0
         fnret r12
-%$rhs:
-        mov r12, rax
-        call %$lower
-        mov [r12+ExprBinOp_right], rax
-        jmp %$loop
         %pop bopreclvl
 %endmacro
 
-start_bopreclvl ParseCommaExpr, ParseExpr
-        binop TOKEN_COMMA, OP_ANDTHEN
-end_bopreclvl
+ParseCommaExpr:
+        fn
+        fcall ParseExpr
+        mov r12, rax
+.loop:
+        fcall PeekTok
+        cmp rax, TOKEN_COMMA
+        jne .done
+        fcall ParseExpr
+        mov r12, rax
+        jmp .loop
+.done:
+        fnret r12
 
 ParseExpr:
         fn
@@ -437,17 +430,17 @@ ParseExpr:
         fnret rax
 
 start_bopreclvl ParseAssign, ParseTernary
-        binop TOKEN_EQ, OP_ASSIGN
-        binop TOKEN_PLUSEQ, OP_ADDASSIGN
-        binop TOKEN_DASHEQ, OP_SUBASSIGN
-        binop TOKEN_STAREQ, OP_MULASSIGN
-        binop TOKEN_SLASHEQ, OP_DIVASSIGN
-        binop TOKEN_MODULOEQ, OP_MODASSIGN
-        binop TOKEN_LTLTEQ, OP_BSLASSIGN
-        binop TOKEN_GTGTEQ, OP_BSRASSIGN
-        binop TOKEN_ANDEQ, OP_BANDASSIGN
-        binop TOKEN_CARETEQ, OP_BXORASSIGN
-        binop TOKEN_BAREQ, OP_BORASSIGN
+        binop TOKEN_EQ, EmitAssign
+        binop TOKEN_PLUSEQ, EmitAddAssign
+        binop TOKEN_DASHEQ, EmitSubAssign
+        binop TOKEN_STAREQ, EmitMulAssign
+        binop TOKEN_SLASHEQ, EmitDivAssign
+        binop TOKEN_MODULOEQ, EmitModAssign
+        binop TOKEN_LTLTEQ, EmitShlAssign
+        binop TOKEN_GTGTEQ, EmitShrAssign
+        binop TOKEN_ANDEQ, EmitBAndAssign
+        binop TOKEN_CARETEQ, EmitBXorAssign
+        binop TOKEN_BAREQ, EmitBOrAssign
 end_bopreclvl
 
 ParseTernary:
@@ -457,57 +450,71 @@ ParseTernary:
         ;; XXX: Implement the ternary operator!
         fnret r12
 
-start_bopreclvl ParseOr, ParseAnd
-        binop TOKEN_BARBAR, OP_OR
-end_bopreclvl
+ParseOr:
+        fn
+        fcall ParseAnd
+        mov r12, rax
+        fcall PeekTok
+        cmp rax, TOKEN_BARBAR
+        je .barbar
+        fnret r12
+.barbar:
+        Panic 101, 'Unsupported'
 
-start_bopreclvl ParseAnd, ParseBor
-        binop TOKEN_ANDAND, OP_AND
-end_bopreclvl
+ParseAnd:
+        fn
+        fcall ParseBor
+        mov r12, rax
+        fcall PeekTok
+        cmp rax, TOKEN_ANDAND
+        je .andand
+        fnret r12
+.andand:
+        Panic 101, 'Unsupported'
 
 start_bopreclvl ParseBor, ParseBxor
-        binop TOKEN_BAR, OP_BOR
+        binop TOKEN_BAR, EmitBOr
 end_bopreclvl
 
 start_bopreclvl ParseBxor, ParseBand
-        binop TOKEN_CARET, OP_BXOR
+        binop TOKEN_CARET, EmitBXor
 end_bopreclvl
 
 start_bopreclvl ParseBand, ParseEquality
-        binop TOKEN_AND, OP_BAND
+        binop TOKEN_AND, EmitBAnd
 end_bopreclvl
 
 start_bopreclvl ParseEquality, ParseCompare
-        binop TOKEN_EQEQ, OP_EQ
-        binop TOKEN_NOTEQ, OP_NE
+        binop TOKEN_EQEQ, EmitEq
+        binop TOKEN_NOTEQ, EmitNotEq
 end_bopreclvl
 
 start_bopreclvl ParseCompare, ParseBitShift
-        binop TOKEN_LT, OP_LT
-        binop TOKEN_GT, OP_GT
-        binop TOKEN_LTEQ, OP_LTE
-        binop TOKEN_GTEQ, OP_GTE
+        binop TOKEN_LT, EmitLessThan
+        binop TOKEN_GT, EmitGreaterThan
+        binop TOKEN_LTEQ, EmitLessThanEq
+        binop TOKEN_GTEQ, EmitGreaterThanEq
 end_bopreclvl
 
 start_bopreclvl ParseBitShift, ParseArith
-        binop TOKEN_LTLT, OP_BSL
-        binop TOKEN_GTGT, OP_BSR
+        binop TOKEN_LTLT, EmitShl
+        binop TOKEN_GTGT, EmitShr
 end_bopreclvl
 
 start_bopreclvl ParseArith, ParseTerm
-        binop TOKEN_PLUS, OP_PLUS
-        binop TOKEN_DASH, OP_MINUS
+        binop TOKEN_PLUS, EmitAdd
+        binop TOKEN_DASH, EmitSub
 end_bopreclvl
 
 start_bopreclvl ParseTerm, ParsePrefix
-        binop TOKEN_STAR, OP_MUL
-        binop TOKEN_SLASH, OP_DIV
-        binop TOKEN_MODULO, OP_MOD
+        binop TOKEN_STAR, EmitMul
+        binop TOKEN_SLASH, EmitDiv
+        binop TOKEN_MODULO, EmitMod
 end_bopreclvl
 
 ParsePrefix:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_STAR
         je .deref
         cmp rax, TOKEN_AND
@@ -525,53 +532,33 @@ ParsePrefix:
 
 .deref:
         fcall Expect, TOKEN_STAR
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov r12, rax
-        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [r12+ExprUnOp_op], UNOP_DEREF
-        fcall ParsePrefix       ; Recurse to allow mult derefs
-        mov [r12+ExprUnOp_target], rax
-        fnret r12
+        fcall ParsePrefix
+        fcall EmitDeref, rax
+        fnret rax
 
 .addrof:
         fcall Expect, TOKEN_AND
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov r12, rax
-        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [r12+ExprUnOp_op], UNOP_ADDROF
         fcall ParsePrefix
-        mov [r12+ExprUnOp_target], rax
-        fnret r12
+        fcall EmitAddrof, rax
+        fnret rax
 
 .negate:
         fcall Expect, TOKEN_DASH
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov r12, rax
-        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [r12+ExprUnOp_op], UNOP_NEGATE
-        fcall ParsePrefix       ; Recurse to allow mult negations
-        mov [r12+ExprUnOp_target], rax
-        fnret r12
+        fcall ParsePrefix
+        fcall EmitNegate, rax
+        fnret rax
 
 .bnot:
         fcall Expect, TOKEN_TILDE
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov r12, rax
-        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [r12+ExprUnOp_op], UNOP_BNOT
-        fcall ParsePrefix       ; Recurse to allow mult negations
-        mov [r12+ExprUnOp_target], rax
-        fnret r12
+        fcall ParsePrefix
+        fcall EmitBNot, rax
+        fnret rax
 
 .not:
         fcall Expect, TOKEN_NOT
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov r12, rax
-        mov QWORD [r12+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [r12+ExprUnOp_op], UNOP_NOT
-        fcall ParsePrefix       ; Recurse to allow mult negations
-        mov [r12+ExprUnOp_target], rax
-        fnret r12
+        fcall ParsePrefix
+        fcall EmitNot, rax
+        fnret rax
 
 .maybecast:
         fcall Expect, TOKEN_LPAREN
@@ -584,21 +571,19 @@ ParsePrefix:
         fcall Expect, TOKEN_RPAREN
         fnret r12
 .cast:
-        fcall Alloc, Heap, SizeOfExprCast
-        mov r12, rax
-        mov QWORD [r12+ExprCast_variant], EXPR_CAST
         fcall ParseType
-        mov [r12+ExprCast_typetarget], rax
+        mov r13, rax
         fcall ParsePrefix
-        mov [r12+ExprCast_target], rax
-        fnret r12
+        fcall EmitCast, rax, r13
+        fcall WrapTypeRValue, r13 ; EmitCast doesn't return a value
+        fnret rax
 
 ParseTrailer:
         fn
         fcall ParseAtom
         mov r12, rax
 .loop:
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_LPAREN
         je .call
         cmp rax, TOKEN_LBRACKET
@@ -609,49 +594,34 @@ ParseTrailer:
         je .indirect
         fnret r12
 
-.call:
+.call:                          ; XXX: IMPLEMENT
         fcall Expect, TOKEN_LPAREN
-        fcall Alloc, Heap, SizeOfExprCall
-        mov QWORD [rax+ExprCall_variant], EXPR_CALL
-        mov [rax+ExprCall_target], r12
-        mov r12, rax
-        fcall NewArr, Heap, 8*8
-        mov r15, rax
-        fcall PeekTokType       ; Handle empty args lists
+        Panic 101, 'Unsupported call'
+        ; r12 = target
+        fcall PeekTok       ; Handle empty args lists
         cmp rax, TOKEN_RPAREN
         je .argsdone
 .argsloop:
         fcall ParseExpr
-        mov rcx, rax
-        fcall ExtendArr, r15, 8
-        mov r15, rax
-        mov [rbx], rcx
-        fcall PeekTokType
+        ; Argument n
+        fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .argsdone
         fcall Expect, TOKEN_COMMA
         jmp .argsloop
 .argsdone:
-        mov [r12+ExprCall_args], r15
         fcall Expect, TOKEN_RPAREN
+        ; Emit the actual call
         jmp .loop
 
 .index:
         ;; The index expression a[b] ~~ *(a+b)
         fcall Expect, TOKEN_LBRACKET
-        fcall Alloc, Heap, SizeOfExprBinOp
-        mov QWORD [rax+ExprBinOp_variant], EXPR_BINARY
-        mov QWORD [rax+ExprBinOp_op], OP_PLUS
-        mov [rax+ExprBinOp_left], r12
-        mov r12, rax
         fcall ParseExpr
-        mov [r12+ExprBinOp_right], rax
-        fcall Expect, TOKEN_RBRACKET
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov QWORD [rax+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [rax+ExprUnOp_op], UNOP_DEREF
-        mov [rax+ExprUnOp_target], r12
+        fcall EmitAdd, r12, rax
+        fcall EmitDeref, rax
         mov r12, rax
+        fcall Expect, TOKEN_RBRACKET
         jmp .loop
 
 .direct:
@@ -659,23 +629,18 @@ ParseTrailer:
         jmp .member
 .indirect:
         fcall Expect, TOKEN_ARROW
-        fcall Alloc, Heap, SizeOfExprUnOp
-        mov QWORD [rax+ExprUnOp_variant], EXPR_UNARY
-        mov QWORD [rax+ExprUnOp_op], UNOP_DEREF
-        mov [rax+ExprUnOp_target], r12
+        fcall EmitDeref, r12
         mov r12, rax
 .member:
-        fcall Alloc, Heap, SizeOfExprMember
-        mov QWORD [rax+ExprMember_variant], EXPR_MEMBER
-        mov [rax+ExprMember_operand], r12
-        mov r12, rax
+        Panic 101, 'Shit'
         fcall Expect, TOKEN_IDENT
-        mov [r12+ExprMember_name], rax
+        ;fcall EmitMember, r12, rax
+        mov r12, rax
         jmp .loop
 
 ParseAtom:
         fn
-        fcall PeekTokType
+        fcall PeekTok
         cmp rax, TOKEN_NUMBER
         je .integer
         cmp rax, TOKEN_SIZEOF
@@ -686,30 +651,21 @@ ParseAtom:
 
 .integer:
         fcall Expect, TOKEN_NUMBER
-        mov r12, rax
-        fcall Alloc, Heap, SizeOfExprInt
-        mov QWORD [rax+ExprInt_variant], EXPR_INTEGER
-        ;mov QWORD [rax+ExprInt_typeof], I64_type
-        mov [rax+ExprInt_value], r12
+        fcall EmitInt, rax
         fnret rax
 
 .sizeof:
         fcall Expect, TOKEN_SIZEOF
         fcall Expect, TOKEN_LPAREN
-        fcall Alloc, Heap, SizeOfExprSizeof
-        mov r12, rax
-        mov QWORD [r12+ExprSizeof_variant], EXPR_SIZEOF
-        ;mov QWORD [r12+ExprSizeof_typeof], I64_type
         fcall ParseType
-        mov [r12+ExprSizeof_target], rax
+        fcall SizeOfType, rax
+        fcall EmitInt, rax
         fcall Expect, TOKEN_RPAREN
         fnret r12
 
 .ref:
         fcall Expect, TOKEN_IDENT
-        mov r12, rax
-        fcall Alloc, Heap, SizeOfExprRef
-        mov QWORD [rax+ExprRef_variant], EXPR_REF
-        mov [rax+ExprRef_name], r12
+        Panic 101, 'Unsupported'
+        ; XXX: Get the type of the value with name IDENT as lvalue
         fnret rax
 

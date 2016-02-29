@@ -240,6 +240,13 @@ __ExtendArr_Resize:
         mov [r12+Array_cap], r15 ; Update capacity!
         jmp __ExtendArr_Fits
 
+;;; Extend the array by 8 bytes, and insert the number. Returns the new array
+PushQWordArr:
+        fn r12, r13             ; r12 = array, r13 = number
+        fcall ExtendArr, r12, 8
+        mov rbx, r13
+        fnret rax
+
 ;;; Extends the array by one character, setting that character to r13
 ;;; Returns a pointer to the array
 PushChrArr:
