@@ -26,7 +26,7 @@
         jne %$signed
         jmp %$unsigned
 %%invalid:
-        Panic 101, 'SwSign on non signed type'
+        Panic 'SwSign on non signed type'
 %endmacro
 
 %macro SwOpSize 1
@@ -55,7 +55,7 @@
         cmp rax, 8
         je %$qword
 %%invalid:
-        Panic 101, 'Invalid type as argument to SwOpSize'
+        Panic 'Invalid type as argument to SwOpSize'
 %endmacro
 
 EmitPushRax:
@@ -79,7 +79,7 @@ EnsureLValue:
 .good:
         fnret [r12+Value_type]
 .bad:
-        Panic 101, 'Expected lvalue, and got non-lvalue'
+        Panic 'Expected lvalue, and got non-lvalue'
 
 ExtractRValue:
         fn r12                  ; value
@@ -115,7 +115,7 @@ _ExtractRValue_done:
 ;;; XXX: Should this take in values or types?
 GetCommonType:
         fn r12, r13             ; r12 = type, r13 = type
-        Panic 101, 'Unimplemented'
+        Panic 'Unimplemented'
         fnret
 
 ;;; r12 on stack, r13 in rax
@@ -537,7 +537,7 @@ EmitDeref:
         fcall WrapTypeLValue, rax
         fnret rax
 .invalid:
-        Panic 101, 'Cannot dereference non pointer type'
+        Panic 'Cannot dereference non pointer type'
 
 EmitAddrof:
         fn r12                  ; r12 = operand
@@ -550,7 +550,7 @@ EmitAddrof:
         fcall WrapTypeRValue, rax
         fnret rax
 .invalid:
-        Panic 101, 'Cannot take address of non lvalue'
+        Panic 'Cannot take address of non lvalue'
 
 EmitNegate:
         fn r12
@@ -672,7 +672,7 @@ _EmitJnz_Data:
         section .text
 EmitJnz:
         fn r12, r13             ; r12 = condition, r13 = label
-        Panic 101, 'Crap'
+        Panic 'Crap'
 
         section .data
 _EmitJz_Data:
@@ -681,7 +681,7 @@ _EmitJz_Data:
         section .text
 EmitJz:
         fn r12, r13             ; r12 = condition, r13 = label
-        Panic 101, 'Crap'
+        Panic 'Crap'
 
 _EmitJmp_Data:
 .len: equ $ - _EmitJmp_Data
@@ -689,10 +689,19 @@ _EmitJmp_Data:
         section .text
 EmitJmp:
         fn r12                  ; r12 = label
-        Panic 101, 'Crap'
+        Panic 'Crap'
 
 EmitCast:
         fn r12, r13             ; r12 = from value, r13 = to type
         fcall ExtractRValue, r12
-        Panic 101, 'BLEARGH CAST'
+        Panic 'BLEARGH CAST'
+        fnret
+
+EmitLaddr:
+        fn r12                  ; r12 = address
+        fcall WrapTypeLValue, [r12+VarDef_type]
+        ; XXX: lea on rbp for locals
+        ; XXX: load constant for globals
+        ; XXX: load constant for functions (?) (functions are rvalues?)
+        Panic 'unimplemented'
         fnret

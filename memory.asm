@@ -127,7 +127,7 @@ __AllocUnal_NewPage:
         mov QWORD [r15+Heap_rem], PAGE_SIZE
         jmp __AllocUnal_RetPtr
 __AllocUnal_Failure:
-        Panic 101, 'FATAL ERROR: Could not allocate memory on heap', NL
+        Panic 'FATAL ERROR: Could not allocate memory on heap'
 
 ;;; Try to free the pointer/size.
 ;;; Only works if pointer is most recently allocated pointer, otherwise NOP
@@ -189,7 +189,7 @@ AllocNewPage:
         je __AllocNewPage_FAILED
         fnret rax
 __AllocNewPage_FAILED:
-        Panic 101, 'Could not allocate a page from the OS!', NL
+        Panic 'Could not allocate a page from the OS!'
 
 ;;;;;;;;;;;;;;;;;;;
 ;;; Array Logic ;;;
@@ -244,8 +244,8 @@ __ExtendArr_Resize:
 PushQWordArr:
         fn r12, r13             ; r12 = array, r13 = number
         fcall ExtendArr, r12, 8
-        mov rbx, r13
-        fnret rax
+        mov [rbx], r13
+        fnret rax, rbx
 
 ;;; Extends the array by one character, setting that character to r13
 ;;; Returns a pointer to the array

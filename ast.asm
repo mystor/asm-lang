@@ -54,7 +54,8 @@ endstruct Type
 
 struct TypeFunc                 ; XXX: Actually implement function ptrs
         field variant
-        field func
+        field returns
+        field params
 endstruct Type
 
         section .rodata
@@ -81,7 +82,7 @@ SizeOfType:
 .TYPE_INT:
         fnret [r12+TypeInt_size]
 .TYPE_STRUCT:
-        Panic 101, 'unsupported'
+        Panic 'unsupported'
 .TYPE_PTR:
         fnret 8
 .TYPE_ARRAY:
@@ -92,9 +93,9 @@ SizeOfType:
         fnret rax
 .TYPE_VOID:
 .TYPE_FUNC:
-        Panic 101, 'Size of unsized type'
+        Panic 'Size of unsized type'
 .TYPE_INVALID:
-        Panic 101, 'Unknown type'
+        Panic 'Unknown type'
 
 
 WrapTypeRValue:
@@ -158,7 +159,7 @@ WriteType:
         fnret
 
 .TYPE_INVALID:
-        Panic 101, 'Invalid Type Type?', NL
+        Panic 'Invalid Type Type?'
 
 .NOTYPE:
         WriteLit STDOUT, 'NIL'

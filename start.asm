@@ -89,11 +89,11 @@ _start:
         fcall WriteDec, [argc]
         WriteLit STDOUT, NL
         fcall WriteDec, [argv]
-        Panic 101, 'Incorrect Argument Length', NL
+        Panic 'Incorrect Argument Length'
 .IncorrectArgValue:
-        Panic 101, 'Incorrect Argument Value', NL
+        Panic 'Incorrect Argument Value'
 .SigHandlerFailed:
         fcall WriteDec, rax
-        Panic 101, 'Signal handler Failed to Attach', NL
+        Panic 'Signal handler Failed to Attach'
         nop
 %pop asmcc

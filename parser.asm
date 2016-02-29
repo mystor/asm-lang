@@ -16,23 +16,25 @@ NextTokenIsType:
         je .ok
         cmp rax, TOKEN_STRUCT
         je .ok
+        ;; XXX: Typedef
         fnret 0
 .ok:
         fnret 1
 
-Expect:
-        fn r12
-        fcall EatTok
-        cmp rax, r12
-        jne .fail
-        fnret rbx
-.fail:
+%macro Expect 1
+        fcall PeekTok
+        cmp rax, %1
+        je %%after
         mov r13, rax
         WriteLit STDOUT, 'Expected '
-        fcall WriteTOKEN, r12
+        fcall WriteTOKEN, %1
         WriteLit STDOUT, ', instead found '
         fcall WriteTOKEN, r13
-        Panic 100, NL
+        Panic
+%%after:
+        fcall EatTok
+        mov rax, rbx
+%endmacro
 
 ParseItem:
         fn
@@ -48,7 +50,7 @@ ParseItem:
         je .struct_def
 
         ;; Not a struct - must be some type of decl
-        fcall Expect, TOKEN_IDENT
+        Expect TOKEN_IDENT
         mov r15, rax            ; r15 has name
 
         fcall PeekTok
@@ -56,49 +58,53 @@ ParseItem:
         je .func_def
 
 .var_def:
-        fcall Expect, TOKEN_SEMI
-        Panic 100, "Global var definitions NOT SUPPORTED YET", NL
+        Expect TOKEN_SEMI
+        Panic 'Global var definitions NOT SUPPORTED YET'
 
 .struct_def:
 ;;; XXX: Implement
-        fcall Expect, TOKEN_LBRACE
         cmp QWORD [r14+Type_variant], TYPE_STRUCT
         jne .expected_name
+        Expect TOKEN_LBRACE
         mov rax, [r14+TypeStruct_name] ; Struct name
 .fieldsloop:
         fcall PeekTok
         cmp rax, TOKEN_RBRACE
         je .fieldsloop_done
         fcall ParseType
-        fcall Expect, TOKEN_IDENT
+        Expect TOKEN_IDENT
         ; Save the field info
         jmp .fieldsloop
 .fieldsloop_done:
-        fcall Expect, TOKEN_RBRACE
-        fcall Expect, TOKEN_SEMI
-        Panic 100, "Unexpected struct definition"
+        Expect TOKEN_RBRACE
+        Expect TOKEN_SEMI
+        Panic 'Unexpected struct definition'
         fnret rcx
 .expected_name:                 ; XXX: Used above for struct_def
-        WriteLit STDOUT, 'Expected NAME'
-        Panic 100, NL
+        ; We got a { after a non struct type - var_def.
+        Expect TOKEN_NAME
 
 .func_def:
-        fcall Expect, TOKEN_LPAREN
+        Expect TOKEN_LPAREN
+        fcall Alloc, Heap, SizeOfTypeFunc
+        mov r12, rax
+        mov [r12+TypeFunc_variant], TYPE_FUNC
+        mov [r12+TypeFunc_returns], r14 ; XXX: Treat void differently?
         fcall PeekTok       ; Handle empty params lists
         cmp rax, TOKEN_RPAREN
         je .paramsdone
 .paramsloop:
         fcall ParseType
-        fcall Expect, TOKEN_IDENT
+        Expect TOKEN_IDENT
         fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .paramsdone
-        fcall Expect, TOKEN_COMMA
+        Expect TOKEN_COMMA
         jmp .paramsloop
 .paramsdone:
-        fcall Expect, TOKEN_RPAREN
+        Expect TOKEN_RPAREN
         fcall ParseCompoundStmt
-        Panic 100, "Unexpected function definition"
+        Panic 'Unexpected function definition'
         fnret rcx
 
 ParseType:
@@ -113,21 +119,21 @@ ParseType:
         je .array
         fnret r12
 .pointer:
-        fcall Expect, TOKEN_STAR
+        Expect TOKEN_STAR
         fcall Alloc, Heap, SizeOfTypePtr
         mov QWORD [rax+TypePtr_variant], TYPE_PTR
         mov [rax+TypePtr_target], r12
         mov r12, rax
         jmp .loop
 .array:
-        fcall Expect, TOKEN_LBRACE
+        Expect TOKEN_LBRACE
         fcall Alloc, Heap, SizeOfTypeArray
         mov QWORD [rax+TypeArray_variant], TYPE_ARRAY
         mov [rax+TypeArray_target], r12
         mov r12, rax
-        fcall Expect, TOKEN_NUMBER
+        Expect TOKEN_NUMBER
         mov [r12+TypeArray_length], rax
-        fcall Expect, TOKEN_RBRACE
+        Expect TOKEN_RBRACE
         jmp .loop
 
         ;; Valid Combinations:
@@ -170,7 +176,7 @@ ParseTypeAtom:
         jmp .no_int_final
 
 .long_modify:
-        fcall Expect, TOKEN_LONG
+        Expect TOKEN_LONG
         cmp r13, 0
         jne .long_prev
 .long_ok:
@@ -180,10 +186,10 @@ ParseTypeAtom:
 .long_prev:
         cmp r13, TOKEN_LONG
         je .long_ok
-        Panic 101, 'Cannot modify a long with short'
+        Panic 'Cannot modify a long with short'
 
 .short_modify:
-        fcall Expect, TOKEN_SHORT
+        Expect TOKEN_SHORT
         cmp r13, 0
         jne .modified_short
 .short_ok:
@@ -191,46 +197,46 @@ ParseTypeAtom:
         mov QWORD [r12+TypeInt_size], 2
         jmp .int_loop
 .modified_short:
-        Panic 101, 'Cannot modify a short with short or long'
+        Panic 'Cannot modify a short with short or long'
 
 .unsigned_modify:
-        fcall Expect, TOKEN_UNSIGNED
+        Expect TOKEN_UNSIGNED
         mov QWORD [r12+TypeInt_signed], 0 ; false
         jmp .int_loop
 
 .char_done:
-        fcall Expect, TOKEN_CHAR
+        Expect TOKEN_CHAR
         cmp r13, 0
         jne .unexpected_modified_char
         mov QWORD [r12+TypeInt_size], 1
         fnret r12
 .unexpected_modified_char:
-        Panic 101, "Unexpected modifier on char type"
+        Panic 'Unexpected modifier on char type'
 
 .int_done:
-        fcall Expect, TOKEN_INT
+        Expect TOKEN_INT
         fnret r12
 .no_int_final:
         cmp QWORD [r12+TypeInt_signed], 1
         jne .no_int_ok
         cmp r13, 0
         jne .no_int_ok
-        fcall Expect, TOKEN_INT ; Will fail
-        Panic 99, 'Unreachable'
+        Expect TOKEN_INT ; Will fail
+        Panic 'Unreachable'
 .no_int_ok:
         fnret r12
 
 .struct_type:
-        fcall Expect, TOKEN_STRUCT
+        Expect TOKEN_STRUCT
         fcall Alloc, Heap, SizeOfTypeStruct
         mov r12, rax
         mov QWORD [r12+TypeStruct_variant], TYPE_STRUCT
-        fcall Expect, TOKEN_IDENT
+        Expect TOKEN_IDENT
         mov [r12+TypeStruct_name], rax
         fnret r12
 
 .void_type:
-        fcall Expect, TOKEN_VOID
+        Expect TOKEN_VOID
         fcall Alloc, Heap, SizeOfTypeVoid
         mov QWORD [rax+TypeVoid_variant], TYPE_VOID
         fnret rax
@@ -257,23 +263,26 @@ ParseStmt:
         fnret
 
 .vardecl:
+        ; Create the entry in the stack frame
         fcall ParseType
-        ; XXX: Allocate space on stack for this variable
-
-        ; XXX: Implement
-        fcall ParseType
-        fcall Expect, TOKEN_IDENT
+        mov r12, rax
+        Expect TOKEN_IDENT
+        fcall StackInsert, rax, r12
+        mov r13, rax
         fcall PeekTok
         cmp rax, TOKEN_EQ
         jne .vardecl_done
-        fcall Expect, TOKEN_EQ
+        fcall EmitLaddr, r13
+        mov r14, rax
+        fcall EmitPushRax
+        Expect TOKEN_EQ
         fcall ParseExpr
+        fcall EmitAssign, r14, rax
 .vardecl_done:
-        Panic 100, "Unexpected vardecl"
-        fnret rcx
+        fnret
 
 .ifstmt:
-        fcall Expect, TOKEN_IF
+        Expect TOKEN_IF
         ElfLitUniqueSymbol "if_then"
         mov r12, rax
         ElfLitUniqueSymbol "if_else"
@@ -281,10 +290,10 @@ ParseStmt:
         ElfLitUniqueSymbol "if_after"
         mov r14, rax
 
-        fcall Expect, TOKEN_LPAREN
+        Expect TOKEN_LPAREN
         fcall ParseExpr         ; XXX: Make sure that this is an int
-        fcall Expect, TOKEN_RPAREN
-        fcall EmitJz, rax, r13       ; Jump to else if cond false
+        Expect TOKEN_RPAREN
+        fcall EmitJz, rax, r13  ; Jump to else if cond false
         fcall ElfSetTextSymbol, r12
         fcall ParseStmt
         fcall EmitJmp, r14      ; Body and jump to after
@@ -298,17 +307,17 @@ ParseStmt:
         fnret
 
 .whilestmt:
-        fcall Expect, TOKEN_WHILE
+        Expect TOKEN_WHILE
         ; Record the start of the expression
         ElfLitUniqueSymbol "while_start"
         mov r12, rax            ; The unique start symbol
         ElfLitUniqueSymbol "while_end"
         mov r13, rax            ; The unique exit symbol
         fcall ElfSetTextSymbol, r12
-        fcall Expect, TOKEN_LPAREN ; Condition
+        Expect TOKEN_LPAREN ; Condition
         fcall ParseExpr
         fcall EmitJnz, rax, r13
-        fcall Expect, TOKEN_RPAREN
+        Expect TOKEN_RPAREN
         fcall ParseStmt         ; Body and exit point
         fcall EmitJmp, r12
         fcall ElfSetTextSymbol, r13 ; Set the exit point
@@ -319,7 +328,7 @@ ParseStmt:
         fnret
 
 .returnstmt:
-        fcall Expect, TOKEN_RETURN
+        Expect TOKEN_RETURN
         fcall ParseExpr
         EmitLit
         ret
@@ -328,18 +337,18 @@ ParseStmt:
 
 ParseCompoundStmt:
         fn
-        fcall Expect, TOKEN_LBRACE
+        Expect TOKEN_LBRACE
         ; XXX: Push a new scope
 .compoundloop:
         fcall PeekTok
         cmp rax, TOKEN_RBRACE
         je .compounddone
         fcall ParseStmt
-        fcall Expect, TOKEN_SEMI
+        Expect TOKEN_SEMI
         jmp .compoundloop
 .compounddone:
         ; XXX: Pop a scope
-        fcall Expect, TOKEN_RBRACE
+        Expect TOKEN_RBRACE
         fnret
 
 ;;; name, nextlvl
@@ -358,7 +367,7 @@ ParseCompoundStmt:
         je %%eq
         jmp %%after
 %%eq:
-        fcall Expect, %1
+        Expect %1
         fcall EmitPushRax
         fcall %$lower
         fcall %2, r12, rax
@@ -420,7 +429,7 @@ ParseOr:
         je .barbar
         fnret r12
 .barbar:
-        Panic 101, 'Unsupported'
+        Panic 'Unsupported'
 
 ParseAnd:
         fn
@@ -431,7 +440,7 @@ ParseAnd:
         je .andand
         fnret r12
 .andand:
-        Panic 101, 'Unsupported'
+        Panic 'Unsupported'
 
 start_bopreclvl ParseBor, ParseBxor
         binop TOKEN_BAR, EmitBOr
@@ -492,44 +501,44 @@ ParsePrefix:
         fnret rax
 
 .deref:
-        fcall Expect, TOKEN_STAR
+        Expect TOKEN_STAR
         fcall ParsePrefix
         fcall EmitDeref, rax
         fnret rax
 
 .addrof:
-        fcall Expect, TOKEN_AND
+        Expect TOKEN_AND
         fcall ParsePrefix
         fcall EmitAddrof, rax
         fnret rax
 
 .negate:
-        fcall Expect, TOKEN_DASH
+        Expect TOKEN_DASH
         fcall ParsePrefix
         fcall EmitNegate, rax
         fnret rax
 
 .bnot:
-        fcall Expect, TOKEN_TILDE
+        Expect TOKEN_TILDE
         fcall ParsePrefix
         fcall EmitBNot, rax
         fnret rax
 
 .not:
-        fcall Expect, TOKEN_NOT
+        Expect TOKEN_NOT
         fcall ParsePrefix
         fcall EmitNot, rax
         fnret rax
 
 .maybecast:
-        fcall Expect, TOKEN_LPAREN
+        Expect TOKEN_LPAREN
         fcall NextTokenIsType
         cmp rax, 0
         jne .cast
 .paren:
         fcall ParseExpr
         mov r12, rax
-        fcall Expect, TOKEN_RPAREN
+        Expect TOKEN_RPAREN
         fnret r12
 .cast:
         fcall ParseType
@@ -557,8 +566,8 @@ ParseTrailer:
 
         ;; XXX: This needs to do the right thing
 .call:                          ; XXX: IMPLEMENT
-        fcall Expect, TOKEN_LPAREN
-        Panic 101, 'Unsupported call'
+        Expect TOKEN_LPAREN
+        Panic 'Unsupported call'
         ; r12 = target
         fcall PeekTok       ; Handle empty args lists
         cmp rax, TOKEN_RPAREN
@@ -569,33 +578,33 @@ ParseTrailer:
         fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .argsdone
-        fcall Expect, TOKEN_COMMA
+        Expect TOKEN_COMMA
         jmp .argsloop
 .argsdone:
-        fcall Expect, TOKEN_RPAREN
+        Expect TOKEN_RPAREN
         ; Emit the actual call
         jmp .loop
 
 .index:
         ;; The index expression a[b] ~~ *(a+b)
-        fcall Expect, TOKEN_LBRACKET
+        Expect TOKEN_LBRACKET
         fcall ParseExpr
         fcall EmitAdd, r12, rax
         fcall EmitDeref, rax
         mov r12, rax
-        fcall Expect, TOKEN_RBRACKET
+        Expect TOKEN_RBRACKET
         jmp .loop
 
 .direct:
-        fcall Expect, TOKEN_DOT
+        Expect TOKEN_DOT
         jmp .member
 .indirect:
-        fcall Expect, TOKEN_ARROW
+        Expect TOKEN_ARROW
         fcall EmitDeref, r12
         mov r12, rax
 .member:
-        Panic 101, 'Shit'
-        fcall Expect, TOKEN_IDENT
+        Panic 'Shit'
+        Expect TOKEN_IDENT
         ;fcall EmitMember, r12, rax
         mov r12, rax
         jmp .loop
@@ -609,25 +618,27 @@ ParseAtom:
         je .sizeof
         cmp rax, TOKEN_IDENT
         je .ref
-        Panic 101, 'Unrecognized Atom Starter', NL
+        Panic 'Unrecognized Atom Starter'
 
 .integer:
-        fcall Expect, TOKEN_NUMBER
+        Expect TOKEN_NUMBER
         fcall EmitInt, rax
         fnret rax
 
 .sizeof:
-        fcall Expect, TOKEN_SIZEOF
-        fcall Expect, TOKEN_LPAREN
+        Expect TOKEN_SIZEOF
+        Expect TOKEN_LPAREN
         fcall ParseType
         fcall SizeOfType, rax
         fcall EmitInt, rax
-        fcall Expect, TOKEN_RPAREN
+        mov r12, rax
+        Expect TOKEN_RPAREN
         fnret r12
 
 .ref:
-        fcall Expect, TOKEN_IDENT
-        Panic 101, 'Unsupported'
-        ; XXX: Get the type of the value with name IDENT as lvalue
+        Expect TOKEN_IDENT
+        fcall StackLookup, rax
+        fcall EmitLaddr, rax
         fnret rax
+
 

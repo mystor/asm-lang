@@ -90,8 +90,12 @@ endstruct
 ;;; Peek/Eat Chars
 
         section .data
-chr_cache:      dq      -2
+chr_cache: dq -2
 chr_infile: dq STDIN
+chr_line: dq 1
+chr_col: dq 0
+tok_line: dq 1
+tok_col: dq 0
 
         section .text
 PeekChr:
@@ -109,6 +113,12 @@ __PeekChr_CacheMiss:
 EatChr:
         fn
         fcall PeekChr
+        inc QWORD [chr_col]
+        cmp rax, NL
+        jne __EatChr_NoNewline
+        inc QWORD [chr_line]
+        mov QWORD [chr_col], 0
+__EatChr_NoNewline:
         mov r12, rax
         cmp QWORD [chr_cache], -1
         je __EatChr_Done
@@ -177,6 +187,10 @@ ReadTok_Map_LEN:   equ     $ - ReadTok_Map
 ReadTok:
         fn r12                  ; r12 = OUT token
 __ReadTok_IGNORE: ; Jump back to here when should ignore
+        mov rax, [chr_line]
+        mov [tok_line], rax
+        mov rax, [chr_col]
+        mov [tok_col], rax
         fcall EatChr
 
         ;; Handle EOF seperately
@@ -456,7 +470,7 @@ __ReadTok_STRING_End:
         fcall SealArr, rax
         rettok TOKEN_STRING, rax
 __ReadTok_STRING_Fail:
-        Panic 100, 'Unexpected EOF while parsing String', NL
+        Panic 'Unexpected EOF while parsing String'
 
 __ReadTok_NUMBER:
         mov r15, rax ; r15 = accumulator
@@ -489,13 +503,13 @@ __ReadTok_NUMBER_Done:
         ; fcall WriteHex, r15
         rettok TOKEN_NUMBER, r15
 __ReadTok_NUMBER_Overflow:
-        Panic 100, 'Number overflowed while reading', NL
+        Panic 'Number overflowed while reading'
 
         ;; Special Cases
 __ReadTok_EOF:
         rettok TOKEN_EOF
 __ReadTok_INVALID:
-        Panic 100, 'Invalid Token!', NL
+        Panic 'Invalid Token!'
 
 %undef rettok
 

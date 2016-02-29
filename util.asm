@@ -1,5 +1,10 @@
 ;;; -*- nasm -*-
 
+;; XXX: IDEAS
+;; ArrOp (fcall followed by mov, potentially followed by mov rax, rbx? prob not.)
+;; PanicIf jeq, Asd, Fgh, 'message' (cmp asd, fgh; jeq .fail; jmp .succeed)
+;; Change enumjmp to use scopes like other jump systems
+
 ;;; From http://www.tortall.net/projects/yasm/manual/html/nasm-multi-line-macros.html#nasm-macro-rotate
 %macro  multipush 1-*
   %rep  %0
@@ -72,11 +77,6 @@
         mbmov r10, %4
         mbmov r11, %5
         call %1
-%endmacro
-
-%macro pushgarb 1
-        push %1
-        mov %1, 0xaadead
 %endmacro
 
 %define BPrax 112
@@ -204,7 +204,7 @@ PopRegs:
 %endmacro
 
 ;;; Allocating stack locals
-%macro alloca 1
+%macro alloca 1                 ; XXX: Currently unused
         sub rsp, %1
         mov rax, rsp
 %endmacro
@@ -270,7 +270,7 @@ Write%[ENAME]:
         %xdefine SizeOf%[SNAME] offset
         %xdefine %[SNAME]$$maxoffset offset
         %xdefine static_[SNAME] times offset db 0
-%[SNAME]_copy:
+%[SNAME]_copy:                  ; XXX: Unused
         fn r8, r9
         fcall MemCpy, r8, r9, SizeOf%[SNAME]
         fnret
@@ -292,9 +292,6 @@ Write%[ENAME]:
           %assign i i+8
         %endrep
 %endmacro
-
-;;; For consistency with SizeOf for structs
-%define SizeOfReg 8
 
         section .bss
 argc: resq 1

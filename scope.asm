@@ -56,9 +56,9 @@ StackInsert:
         mov [rax+VarDef_type], r13
         fcall PushQWordArr, [frame_arr], rax
         mov [frame_arr], rax
-        fnret
+        fnret rbx
 .repeated:
-        Panic 101, 'Cannot insert a duplicate variable name'
+        Panic 'Cannot insert a duplicate variable name'
 
 ;;; Looks up a variable with the given name in the current scope.
 ;;; Returns 0 if there is no such variable

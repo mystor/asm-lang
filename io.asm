@@ -80,10 +80,23 @@ WriteBytes:
 
 ;;; Write out an error message to STDERR
 ;;; And then abort the current program
-%macro Panic 2+
-        %defstr %%str __LINE__
-        WriteLit STDOUT, NL, '(', __FILE__, ':', %%str, ') ', %2, NL
-        mov rax, [0]
+%macro Panic 1+
+        WriteLit STDOUT, %1
+        Panic
+%endmacro
+
+%macro Panic 0
+%defstr %%str __LINE__
+        WriteLit STDOUT, ' @ Line '
+        fcall WriteDec, [tok_line]
+        WriteLit STDOUT, '/'
+        fcall WriteDec, [chr_line]
+        WriteLit STDOUT, ', Col '
+        fcall WriteDec, [tok_col]
+        WriteLit STDOUT, '/'
+        fcall WriteDec, [chr_col]
+        WriteLit STDOUT, ' (', __FILE__, ':', %%str, ') ', NL
+        mov rax, [0]            ; segfault
 %endmacro
 
         section .text
@@ -100,14 +113,12 @@ DumpBacktrace:
 .loop:
         cmp QWORD [r12], 0
         je .done
-        ;mov rcx, [r12+64]
         mov rcx, [r12+120]
         WriteLit STDOUT, 'BT>--stop-address=0x'
         fcall WriteHex, STDOUT, rcx
         sub rcx, 5              ; Size of the call instruction!
         WriteLit STDOUT, ' --start-address=0x'
         fcall WriteHex, STDOUT, rcx
-        ;WriteLit STDOUT, NL
 
         %assign sep 10
 %macro writereg 2
@@ -137,6 +148,7 @@ DumpBacktrace:
           %assign sep 9
         %endif
 %endmacro
+%ifdef WRITEREGS
         writereg 'rax', 112
         writereg 'rbx', 104
         writereg 'rcx', 96
@@ -155,6 +167,7 @@ DumpBacktrace:
         writereg 'r13', 24
         writereg 'r14', 16
         writereg 'r15', 8
+%endif
         WriteLit STDOUT, NL, NL
 
         mov r12, [r12]
@@ -256,28 +269,6 @@ WriteStr:
         syscall
         fnret
 
-Spawn:
-        fn r12, r13             ; r12 = process, r13 = args
-
-        ;; Fork off a subprocess
-        mov rax, SYS_VFORK
-        syscall
-        cmp rax, -1
-        je __Spawn_Fail
-        cmp rax, 0
-        jne __Spawn_Exit
-
-        ;; Execute the new process
-        mov rax, SYS_EXECVE
-        mov rdi, r12
-        mov rsi, r13
-        mov rdx, 0
-        syscall
-__Spawn_Fail:
-        Panic 100, "Failed to spawn subprocess", NL
-__Spawn_Exit:
-        fnret
-
 GetChr:
         fn rdi
         mov rax, SYS_READ
@@ -298,7 +289,7 @@ __GetChr_Fail:
 %define Sigaction_sa_restorer 16
 %define Sigaction_sa_mask 24
 %define SizeOfSigset 128          ; Seems unnecessarially big
-%define Sig_MAGIC_FLAGS 0x4000000 ; ???
+%define Sig_MAGIC_FLAGS 0x4000000
 
         section .rodata
 SigSEGVHandler:
@@ -309,9 +300,10 @@ SigSEGVHandler:
 
         section .text
 SegvHandler:
-        WriteLit STDOUT, 'Received SIGSEGV -- Aborting with backtrace', NL
 %ifdef BACKTRACE
         fcall DumpBacktrace
+%else
+        WriteLit STDOUT, 'Segfault', NL
 %endif
         fcall Exit, 101
 
