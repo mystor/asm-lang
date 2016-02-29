@@ -21,49 +21,49 @@
 ;;; A real copy loop
 MemCpy:
         fn r12, r13, r14        ; r12 = src, r13 = dst, r14 = cnt
-__MemCpy_Loop:
+.loop:
         cmp r14, 0
-        je __MemCpy_Done
+        je .done
         mov BYTE al, [r12]
         mov BYTE [r13], al
         add r12, 1
         add r13, 1
         sub r14, 1
-        jmp __MemCpy_Loop
-__MemCpy_Done:
+        jmp .loop
+.done:
         fnret
 
 ;;; A inefficient byte-by-byte memory set loop
 MemSet:
         fn r12, r13, r14        ; r12 = val, r13 = dst, r14 = cnt
-__MemSet_Loop:
+.loop:
         cmp r14, 0
-        je __MemSet_Done
+        je .done
         mov BYTE [r13], r12b
         add r13, 1
         sub r14, 1
-        jmp __MemSet_Loop
-__MemSet_Done:
+        jmp .loop
+.done:
         fnret
 
 ;;; 1 if r12 and r13's first r14 bytes are equal
 ;;; 0 otherwise
 MemEq:
         fn r12, r13, r14
-__MemEq_Loop:
+.loop:
         cmp r14, 0
-        je __MemEq_Eq
+        je .eq
         mov al, BYTE [r12]
         mov bl, BYTE [r13]
         cmp al, bl
-        jne __MemEq_Neq
+        jne .neq
         add r12, 1
         add r13, 1
         sub r14, 1
-        jmp __MemEq_Loop
-__MemEq_Eq:
+        jmp .loop
+.eq:
         fnret 1
-__MemEq_Neq:
+.neq:
         fnret 0
 
 
@@ -100,33 +100,33 @@ AlignHeap:
         ;mov rdx, 0
         ;div r12                 ; rdx has remainder
         cmp rax, 0
-        je __AlignHeap_Aligned
+        je .aligned
         sub r12, rax             ; r12 has align - remainder
         add [r15+Heap_page], r12 ; Move the page by the right amount
         sub [r15+Heap_rem], r12  ; Remove that amount from remaining space
-__AlignHeap_Aligned:
+.aligned:
         fnret
 
 ;;; Allocate an block of memory with size r12 at the current allocation tip
 AllocUnal:
         fn r15, r12             ; r15 = heap, r12 = size
         cmp r12, [r15+Heap_rem]
-        jge __AllocUnal_NewPage
-__AllocUnal_RetPtr:
+        jge .newpage
+.retptr:
         mov r13, [r15+Heap_page]
         sub [r15+Heap_rem], r12
         add [r15+Heap_page], r12
         fcall MemSet, 0, r13, r12
         fnret r13
-__AllocUnal_NewPage:
+.newpage:
         cmp r12, PAGE_SIZE
-        jge __AllocUnal_Failure
+        jge .failure
 
         fcall AllocNewPage
         mov [r15+Heap_page], rax
         mov QWORD [r15+Heap_rem], PAGE_SIZE
-        jmp __AllocUnal_RetPtr
-__AllocUnal_Failure:
+        jmp .retptr
+.failure:
         Panic 'FATAL ERROR: Could not allocate memory on heap'
 
 ;;; Try to free the pointer/size.
@@ -137,10 +137,10 @@ Free:
         mov rax, [r15+Heap_page]
         sub rax, r13
         cmp rax, r12
-        je __Free_Recent
+        je .recent
         WriteLit STDOUT, 'WARNING: Attempt to free non-recent memory'
         fnret
-__Free_Recent:
+.recent:
         mov [r15+Heap_page], r12
         add [r15+Heap_rem], r13
         fnret
@@ -148,29 +148,29 @@ __Free_Recent:
 Realloc:
         fn r15, r12, r13, r14   ; r15 = heap, r12 = ptr, r13 = size, r14 = new size
         cmp r12, 0              ; NULL always requires an allocation
-        je __Realloc_NewAlloc
+        je .newalloc
         mov rax, [r15+Heap_page]
         sub rax, r13
         cmp rax, r12
-        je __Realloc_Recent
-__Realloc_NewAlloc:             ; Cannot re-use old allocation
+        je .recent
+.newalloc:                      ; Cannot re-use old allocation
         cmp r14, r13
-        jle __Realloc_NoChange
+        jle .nochange
         fcall Alloc, r15, r14
         push rax                ; Save the return value of Alloc across the call
         fcall MemCpy, r12, rax, r13
         pop rax
         fnret rax
-__Realloc_Recent:               ; Try to re-use old allocation
+.recent:                        ; Try to re-use old allocation
         mov rax, r14
         sub rax, r13            ; Calculate difference in sizes
         cmp rax, [r15+Heap_rem] ; Check if it's too big to fit (signed)
-        jg __Realloc_NewAlloc   ; No point freeing - will need new page
+        jg .newalloc            ; No point freeing - will need new page
         sub [r15+Heap_rem], rax
         add [r15+Heap_page], rax
         lea rbx, [r12+r13]
         fcall MemSet, 0, rbx, rax
-__Realloc_NoChange:
+.nochange:
         fnret r12, rbx
 
 ;;; Allocate a full page from the OS with mmap
@@ -186,9 +186,9 @@ AllocNewPage:
         syscall
 
         cmp rax, MAP_FAILED
-        je __AllocNewPage_FAILED
+        je .failed
         fnret rax
-__AllocNewPage_FAILED:
+.failed:
         Panic 'Could not allocate a page from the OS!'
 
 ;;;;;;;;;;;;;;;;;;;
@@ -219,15 +219,15 @@ ExtendArr:
         mov rax, [r12+Array_len]
         add rax, r13
         cmp rax, [r12+Array_cap]
-        jg __ExtendArr_Resize   ; Intentionally signed
+        jg .resize              ; Intentionally signed
                                 ; (so can ExtendArr negative)
-__ExtendArr_Fits:
+.fits:
         mov rax, [r12+Array_len]
         lea rbx, [r12+rax]      ; Index of new array elt in rbx
         add rax, r13            ; Increment len property
         mov [r12+Array_len], rax
         fnret r12, rbx          ; ptr to new elt in rbx!
-__ExtendArr_Resize:
+.resize:
         mov rax, [r12+Array_heap]     ; Target Heap
         lea rbx, [r12-Array_HeadSize] ; Allocation Pointer
         mov rcx, [r12+Array_cap]      ; Old Capacity
@@ -238,7 +238,7 @@ __ExtendArr_Resize:
         lea r12, [rax+Array_HeadSize]
         sub r15, Array_HeadSize
         mov [r12+Array_cap], r15 ; Update capacity!
-        jmp __ExtendArr_Fits
+        jmp .fits
 
 ;;; Extend the array by 8 bytes, and insert the number. Returns the new array
 PushQWordArr:
@@ -284,10 +284,10 @@ AlignArr:
         mov rax, [r12+Array_len]
         and rax, 7
         cmp rax, 0
-        je __AlignArr_Aligned
+        je .aligned
         add QWORD [r12+Array_len], 8 ; Can directly modify as will be in bounds
         sub [r12+Array_len], rax
-__AlignArr_Aligned:
+.aligned:
         fnret r12
 
 struct KVPair
@@ -300,19 +300,19 @@ LookupByKey:
         fn r12, r13             ; r12 = address of array, r13 = string key
         mov r12, [r12]          ; Dereference r12!
         mov r14, [r12+Array_len]
-__LookupByKey_Loop:
+.loop:
         cmp r14, 0
-        jle __LookupByKey_NotFound
+        jle .notfound
         sub r14, SizeOfKVPair
         mov rax, [r12+r14+KVPair_key]
         fcall StrCmp, rax, r13
         cmp rax, 0
-        je __LookupByKey_Found
-        jmp __LookupByKey_Loop
-__LookupByKey_Found:
+        je .found
+        jmp .loop
+.found:
         lea rax, [r12+r14+KVPair_value]
         fnret rax
-__LookupByKey_NotFound:
+.notfound:
         fnret 0
 
 ;;; Looks up a value by key - returns a pointer to the value
@@ -322,13 +322,13 @@ LookupOrInsertByKey:
         fn r12, r13             ; r12 = address of array, r13 = string key
         fcall LookupByKey, r12, r13
         cmp rax, 0
-        jne __LookupOrInsertByKey_Found
-__LookupOrInsertByKey_NotFound:
+        jne .found
+.notfound:
         fcall ExtendArr, [r12], SizeOfKVPair
         mov [r12], rax
         mov [rbx+KVPair_key], r13
         lea rax, [rbx+KVPair_value]
-__LookupOrInsertByKey_Found:
+.found:
         fnret rax
 
 %define SizeOfQWORD 8

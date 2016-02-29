@@ -101,10 +101,10 @@ tok_col: dq 0
 PeekChr:
         fn
         cmp QWORD [chr_cache], -2
-        je __PeekChr_CacheMiss
-__PeekChr_CacheHit:
+        je .cachemiss
+.cachehit:
         fnret [chr_cache]
-__PeekChr_CacheMiss:
+.cachemiss:
         fcall GetChr, [chr_infile]
         mov [chr_cache], rax
         fnret rax
@@ -115,16 +115,17 @@ EatChr:
         fcall PeekChr
         inc QWORD [chr_col]
         cmp rax, NL
-        jne __EatChr_NoNewline
+        jne .no_newline
+.newline:
         inc QWORD [chr_line]
         mov QWORD [chr_col], 0
-__EatChr_NoNewline:
+.no_newline:
         mov r12, rax
         cmp QWORD [chr_cache], -1
-        je __EatChr_Done
+        je .done
         fcall GetChr, [chr_infile]
         mov [chr_cache], rax
-__EatChr_Done:
+.done:
         fnret r12
 
 ;;; **************

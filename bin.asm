@@ -270,19 +270,19 @@ ElfFindSymbol:
         mov rcx, 0
         mov rdx, [r13+Array_len]
 
-__ElfFindSymbol_Search:
+.search:
         cmp rcx, rdx
-        jae __ElfFindSymbol_Absent
+        jae .absent
 
         mov eax, [r13+rcx+ST_name] ; Get the name offset
         lea rax, [r14+rax]         ; Get a pointer to the actual string
         fcall StrCmp, rax, r12
         cmp rax, 0
-        je __ElfFindSymbol_Found
+        je .found
 
         add rcx, ST_entry_size
-        jmp __ElfFindSymbol_Search
-__ElfFindSymbol_Absent:
+        jmp .search
+.absent:
         fcall StrLen, r12       ; Allocate space for the name
         lea rcx, [rax+1]        ; Space for the nil
         fcall ExtendArr, r14, rcx
@@ -298,7 +298,7 @@ __ElfFindSymbol_Absent:
         mov [symtab_arr], r13
         mov DWORD [rbx+ST_name], r14d
         fnret rbx
-__ElfFindSymbol_Found:
+.found:
         fnret rcx
 
         section .data

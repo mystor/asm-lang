@@ -277,9 +277,9 @@ GetChr:
         mov rdx, 1
         syscall
         cmp rax, 0
-        je __GetChr_Fail
+        je .fail
         fnret [rsp-8]
-__GetChr_Fail:
+.fail:
         fnret -1
 
 
