@@ -70,7 +70,7 @@ MemEq:
 ;;; Offsets of the page and remainder properties in heaps
 %define Heap_page 0
 %define Heap_rem 8
-%define Heap_size 16
+%define SizeOfHeap 16
 
 ;;; A macro for creating a heap's required data
 %macro globl_heap 1
@@ -212,9 +212,29 @@ NewArr:
         mov [rax+Array_cap], r12
         fnret rax
 
+;;; Create a new array which owns its own heap. Allocates its heap on Heap
+;;; XXX: Right now this is horribly inefficient, and will waste tons of space
+NewBigArr:
+        fn
+        fcall Alloc, Heap, SizeOfHeap
+        fcall NewArr, rax, PAGE_SIZE - Array_HeadSize
+        fnret rax
+
+;;; Helper macro for running ExtendArr and friends
+%macro DoArr 3
+        fcall __%1Arr, %2, %3
+        mov %2, rax
+        mov rax, rbx
+%endmacro
+%macro DoArr 2
+        fcall __%1Arr, %2
+        mov %2, rax
+        mov rax, rbx
+%endmacro
+
 ;;; Extends the array by N bytes, returning the array pointer in rax,
 ;;; and a pointer to the new element in rbx
-ExtendArr:
+__ExtendArr:
         fn r12, r13             ; r12 = array, r13 = amount
         mov rax, [r12+Array_len]
         add rax, r13
@@ -241,23 +261,23 @@ ExtendArr:
         jmp .fits
 
 ;;; Extend the array by 8 bytes, and insert the number. Returns the new array
-PushQWordArr:
+__PushQWordArr:
         fn r12, r13             ; r12 = array, r13 = number
-        fcall ExtendArr, r12, 8
+        fcall __ExtendArr, r12, 8
         mov [rbx], r13
         fnret rax, rbx
 
 ;;; Extends the array by one character, setting that character to r13
 ;;; Returns a pointer to the array
-PushChrArr:
+__PushChrArr:
         fn r12, r13             ; r12 = array, r13 = char
-        fcall ExtendArr, r12, 1
+        fcall __ExtendArr, r12, 1
         mov BYTE [rbx], r13b
         fnret rax, rbx
 
 ;;; Seals an array, removing its header, and attempting to free any un-used space
 ;;; Returns a pointer to the newly-sealed array
-SealArr:
+__SealArr:
         fn r12                  ; r12 = array
         ;; Load the head into registers
         mov r15, [r12+Array_heap]
@@ -324,10 +344,9 @@ LookupOrInsertByKey:
         cmp rax, 0
         jne .found
 .notfound:
-        fcall ExtendArr, [r12], SizeOfKVPair
-        mov [r12], rax
-        mov [rbx+KVPair_key], r13
-        lea rax, [rbx+KVPair_value]
+        DoArr Extend, [r12], SizeOfKVPair
+        mov [rax+KVPair_key], r13
+        lea rax, [rax+KVPair_value]
 .found:
         fnret rax
 

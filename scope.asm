@@ -26,8 +26,7 @@ StackPushFrame:
         ; curr = x
         mov r12, [frame_arr]
         mov r14, [r12+Array_len] ; Save the index of the start of the frame
-        fcall PushQWordArr, r12, [curr]
-        mov [frame_arr], rax
+        DoArr PushQWord, [frame_arr], [curr]
         mov [curr], r14
         fnret
 
@@ -54,8 +53,7 @@ StackInsert:
         fcall Alloc, Heap, SizeOfVarDef
         mov [rax+VarDef_name], r12
         mov [rax+VarDef_type], r13
-        fcall PushQWordArr, [frame_arr], rax
-        mov [frame_arr], rax
+        DoArr PushQWord, [frame_arr], rax
         fnret rbx
 .repeated:
         Panic 'Cannot insert a duplicate variable name'

@@ -222,17 +222,14 @@ ElfInit:
         fcall NewArr, StrTabHeap, 2048
         mov [strtab_arr], rax
 
-        fcall ExtendArr, [symtab_arr], ST_entry_size
-        mov [symtab_arr], rax
-        fcall ExtendArr, [strtab_arr], 1 ; First string should have non-zero offset
-        mov [strtab_arr], rax
+        DoArr Extend, [symtab_arr], ST_entry_size
+        DoArr Extend, [strtab_arr], 1
         fnret
 
 ;;; Write out the standard library
 ElfWriteStd:
         fn
-        fcall ExtendArr, [text_arr], stdlib.len
-        mov [text_arr], rax
+        DoArr Extend, [text_arr], stdlib.len
         fcall MemCpy, stdlib, rbx, stdlib.len
 
         ElfFindLitSymbol "std$$PrintNum"
@@ -285,19 +282,15 @@ ElfFindSymbol:
 .absent:
         fcall StrLen, r12       ; Allocate space for the name
         lea rcx, [rax+1]        ; Space for the nil
-        fcall ExtendArr, r14, rcx
-        mov r14, rax
-        mov [strtab_arr], r14
-        mov rdx, rbx
+        DoArr Extend, [strtab_arr], rcx
+        mov rdx, rax
         fcall MemCpy, r12, rdx, rcx ; Copy the data over
-        sub rdx, r14            ; r14 is index in string array
+        sub rdx, [strtab_arr]   ; r14 is index in string array
         mov r14, rdx
 
-        fcall ExtendArr, r13, ST_entry_size ; Allocate space for symbol
-        mov r13, rax
-        mov [symtab_arr], r13
-        mov DWORD [rbx+ST_name], r14d
-        fnret rbx
+        DoArr Extend, [symtab_arr], ST_entry_size ; Allocate space for symbol
+        mov DWORD [rax+ST_name], r14d
+        fnret rax
 .found:
         fnret rcx
 
@@ -324,24 +317,21 @@ ElfUniqueSymbol:
         dec rdx                 ; Exclude nil
 
         ;; Load into array
-        fcall ExtendArr, [strtab_arr], rdx
-        mov [strtab_arr], rax
-        mov r14, rbx            ; r14 = offset of string
-        sub r14, rax
-        fcall MemCpy, rsp, rbx, rdx
+        DoArr Extend, [strtab_arr], rdx
+        mov r14, rax            ; r14 = offset of string
+        sub r14, [strtab_arr]
+        fcall MemCpy, rsp, rax, rdx
 
         ;; Also bring in the base, but include nil this time
         fcall StrLen, r12       ; Copy in the symbol name hint
         lea rdx, [rax+1]        ; Include nil
-        fcall ExtendArr, [strtab_arr], rdx
-        mov [strtab_arr], rax
-        fcall MemCpy, r12, rbx, rdx
+        DoArr Extend, [strtab_arr], rdx
+        fcall MemCpy, r12, rax, rdx
 
         ;; Create the symbol table
-        fcall ExtendArr, [symtab_arr], ST_entry_size
-        mov [symtab_arr], rax
-        mov DWORD [rbx+ST_name], r14d
-        fnret rbx
+        DoArr Extend, [symtab_arr], ST_entry_size
+        mov DWORD [rax+ST_name], r14d
+        fnret rax
 
 ElfSetTextSymbol:
         fn r12                  ; r12 = symbol
@@ -354,17 +344,15 @@ ElfSetTextSymbol:
 
 ElfWriteText:
         fn r12, r13             ; r12 = ptr, r13 = len
-        fcall ExtendArr, [text_arr], r13
-        mov [text_arr], rax
-        fcall MemCpy, r12, rbx, r13
+        DoArr Extend, [text_arr], r13
+        fcall MemCpy, r12, rax, r13
         fnret
 
 ;;; XXX: Testing program
 ElfWriteProg:
         fn
-        fcall ExtendArr, [text_arr], testing123_len
-        mov [text_arr], rax
-        fcall MemCpy, testing123, rbx, testing123_len
+        DoArr Extend, [text_arr], testing123_len
+        fcall MemCpy, testing123, rax, testing123_len
         fnret
 
 ;;; Finalize the current elf setup, filling in the headers with accurate data

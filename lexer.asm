@@ -373,9 +373,9 @@ __ReadTok_IDENT:
         ;; Create an array, and push rax onto it
         push rax
         fcall NewArr, Heap, 8
-        pop r9
-        fcall PushChrArr, rax, r9
         mov r13, rax
+        pop rax
+        DoArr PushChr, r13, rax
 
 __ReadTok_IDENT_Loop:
         fcall PeekChr
@@ -396,19 +396,13 @@ __ReadTok_IDENT_Loop:
         jmp __ReadTok_IDENT_Done
 
 __ReadTok_IDENT_Read:
-        fcall PushChrArr, r13, rax
-        mov r13, rax
+        DoArr PushChr, r13, rax
         fcall EatChr
         jmp __ReadTok_IDENT_Loop
 
 __ReadTok_IDENT_Done:
-        fcall PushChrArr, r13, 0 ; Trailing NUL
-        fcall SealArr, rax
-        mov r13, rax
-
-        ;WriteLit STDOUT, NL
-        ;fcall WriteStr, r13
-        ;WriteLit STDOUT, NL
+        DoArr PushChr, r13, 0
+        DoArr Seal, r13
 
         ;; Check for matches with keywords
 %macro kwtok 2
@@ -454,8 +448,7 @@ __ReadTok_STRING_Loop:
         cmp al, 92              ; \ ('\' messes up syntax highlighting)
         je __ReadTok_STRING_ReadEscChr
 
-        fcall PushChrArr, r14, rax
-        mov r14, rax
+        DoArr PushChr, r14, rax
         jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_ReadEscChr:
         ;; A \ was read, read in chr after it
@@ -463,13 +456,12 @@ __ReadTok_STRING_ReadEscChr:
         cmp rax, -1             ; EOF
         je __ReadTok_STRING_Fail
 
-        fcall PushChrArr, r14, rax
-        mov r14, rax
+        DoArr PushChr, r14, rax
         jmp __ReadTok_STRING_Loop
 __ReadTok_STRING_End:
-        fcall PushChrArr, r14, 0 ; Trailing NUL
-        fcall SealArr, rax
-        rettok TOKEN_STRING, rax
+        DoArr PushChr, r14, 0
+        DoArr Seal, r14
+        rettok TOKEN_STRING, r14
 __ReadTok_STRING_Fail:
         Panic 'Unexpected EOF while parsing String'
 
