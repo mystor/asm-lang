@@ -13,6 +13,9 @@
 %endmacro
 
 %macro SwSign 1
+%ifidni %1, rax
+%error 'Cannot use rax as operand to SwSign'
+%endif
         %push switchsign
         mov rax, [%1+Type_variant]
         cmp rax, TYPE_INT
@@ -30,6 +33,9 @@
 %endmacro
 
 %macro SwOpSize 1
+%ifidni %1, rax
+%error 'Cannot use rax as operand to SwOpSize'
+%endif
         %push switchsize
         [section .rodata]
 %%jmptbl:
@@ -85,7 +91,7 @@ ExtractRValue:
         fn r12                  ; value
         mov r13, [r12+Value_type]
         cmp QWORD [r12+Value_alloc], ALLOC_RVALUE
-        je _ExtractRValue_done
+        je .done
         SwOpSize r13
 %$byte:
         EmitLit
@@ -108,15 +114,32 @@ ExtractRValue:
         EndEmitLit
         fnret r13
 %pop switchsize
-_ExtractRValue_done:
+.done:
         fnret r13
 
-;;; XXX: The common type returned must always be an rvalue.
-;;; XXX: Should this take in values or types?
+;; Takes in types, and returns a type
 GetCommonType:
         fn r12, r13             ; r12 = type, r13 = type
-        Panic 'Unimplemented'
-        fnret
+        cmp QWORD [r12+Type_variant], TYPE_INT
+        jne .notint
+        cmp QWORD [r13+Type_variant], TYPE_INT
+        jne .notint
+        mov rax, [r12+TypeInt_size]
+        mov rbx, [r13+TypeInt_size]
+        cmp rax, rbx
+        je .samesize
+        ja .r12
+        jmp .r13
+.samesize:
+        cmp QWORD [r12+TypeInt_signed], 0
+        je .r12
+        jmp .r13
+.r13:
+        fnret r13
+.r12:
+        fnret r12
+.notint:
+        Panic 'Not implemented for non-int types'
 
 ;;; r12 on stack, r13 in rax
 ;;; Cast r13 to r12, and emit an assignment
@@ -124,7 +147,7 @@ EmitAssign:
         fn r12, r13             ; r12 = lhs, r13 = rhs
         fcall EnsureLValue, r12
         mov r14, rax
-        fcall EmitCast, r13, r14 ; Cast the value to the type of rhs!
+        fcall EmitCast, r13, r14 ; Cast the value to the type of lhs!
         SwOpSize r14
 %$byte:
         EmitLit
@@ -649,20 +672,30 @@ EmitNot:
 %pop switchsize
 
         section .data
-_EmitInt_Data:
+C_EmitInt:
         db REX_BASE | REX_W
         db 0xb8 + REG_RAX
-.value: times 8 db 0
-.len: equ $ - _EmitInt_Data
+;.value: times 8 db 0
+.len: equ $ - C_EmitInt
 
         section .text
 ;;; XXX: Always emits 64-bit integer - consider 32/16-bit?
 EmitInt:
         fn r12                  ; r12 = value
+        ;push r12
+        ;fcall MemCpy, rsp, _EmitInt_Data.value, 8
+        ;pop r12
+        DoArr Write, [ElfText], C_EmitInt, C_EmitInt.len
         push r12
-        fcall MemCpy, rsp, _EmitInt_Data.value, 8
+        DoArr Write, [ElfText], rsp, 8
         pop r12
-        fcall ElfWriteText, _EmitInt_Data, _EmitInt_Data.len
+        ;fcall ElfWriteText, _EmitInt_Data, _EmitInt_Data.len
+        fnret I64_value
+
+EmitLazyInt:
+        fn r12, r13
+        DoArr Write, [ElfText], C_EmitInt, C_EmitInt.len
+        fcall WriteLazy, ElfText, r12, r13, 8
         fnret I64_value
 
         section .data
@@ -694,14 +727,107 @@ EmitJmp:
 EmitCast:
         fn r12, r13             ; r12 = from value, r13 = to type
         fcall ExtractRValue, r12
-        Panic 'BLEARGH CAST'
+        mov r14, rax
+        SwOpSize r14
+%$byte:
+        SwOpSize r13
+  %$byte:
         fnret
+  %$word:
+  %$dword:
+  %$qword:
+        SwSign r13
+    %$unsigned:
+        EmitLit
+        and rax, 0xff
+        EndEmitLit
+        fnret
+    %$signed:
+        EmitLit
+        cbw
+        cwde
+        cdqe
+        EndEmitLit
+        fnret
+    %pop switchsign
+  %pop switchsize
+%$word:
+        SwOpSize r13
+  %$byte:
+  %$word:
+        fnret
+  %$dword:
+  %$qword:
+        SwSign r13
+    %$unsigned:
+        EmitLit
+        and rax, 0xffff
+        EndEmitLit
+        fnret
+    %$signed:
+        EmitLit
+        cwde
+        cdqe
+        EndEmitLit
+        fnret
+    %pop switchsign
+  %pop switchsize
+%$dword:
+        SwOpSize r13
+  %$byte:
+  %$word:
+  %$dword:
+        fnret
+  %$qword:
+        SwSign r13
+    %$unsigned:
+        ;EmitLit
+        ; XXX: 
+        ;and rax, 0xffffffff
+        ;EndEmitLit
+        fnret
+    %$signed:
+        EmitLit
+        cdqe
+        EndEmitLit
+        fnret
+    %pop switchsign
+  %pop switchsize
+%$qword:
+        fnret                   ; Shrinking is always OK
+%pop switchsize
 
+        section .data
+C_LocalLea:
+        db REX_BASE | REX_W
+        db 0x8d                 ; lea
+        db 0x85                 ; rax, [rbp+...]
+.offset: times 4 db 0           ; offset
+.len: equ $ - C_LocalLea
+
+        section .text
 EmitLaddr:
         fn r12                  ; r12 = address
+        cmp QWORD [r12+VarDef_alloc], DALLOC_LOCAL
+        je .local
+        cmp QWORD [r12+VarDef_alloc], DALLOC_GLOBAL
+        je .global
+        cmp QWORD [r12+VarDef_alloc], DALLOC_CONST
+        je .const
+        Panic 'Unexpected alloc type'
+.local:
+        mov rax, [r12+VarDef_data]
+        push rax
+        fcall MemCpy, rsp, C_LocalLea.offset, 4
+        pop rax
+        fcall ElfWriteText, C_LocalLea, C_LocalLea.len
         fcall WrapTypeLValue, [r12+VarDef_type]
-        ; XXX: lea on rbp for locals
-        ; XXX: load constant for globals
-        ; XXX: load constant for functions (?) (functions are rvalues?)
-        Panic 'unimplemented'
-        fnret
+        fnret rax
+.global:
+        fcall EmitLazyInt, 0, [r12+VarDef_data]
+        fcall WrapTypeLValue, [r12+VarDef_type]
+        fnret rax
+.const:
+        fcall EmitLazyInt, 0, [r12+VarDef_data]
+        fcall WrapTypeRValue, [r12+VarDef_type]
+        fnret rax

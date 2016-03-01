@@ -193,13 +193,9 @@ ELF_prelude_size: equ $ - ELF_prelude
 ELF_text_start: equ ELF_prelude_size + ELF_base_addr
 
         section .bss
-globl_heap TextHeap
-text_arr: resq 1
-globl_heap DataHeap
+ElfText: resq 1
 data_arr: resq 1
-globl_heap SymTabHeap
 symtab_arr: resq 1
-globl_heap StrTabHeap
 strtab_arr: resq 1
 
 %macro ElfFindLitSymbol 1
@@ -213,13 +209,13 @@ strtab_arr: resq 1
 ElfInit:
         fn
         ;; Initialize the text and data heaps
-        fcall NewArr, TextHeap, 2048
-        mov [text_arr], rax
-        fcall NewArr, DataHeap, 2048
+        fcall NewBigArr
+        mov [ElfText], rax
+        fcall NewBigArr
         mov [data_arr], rax
-        fcall NewArr, SymTabHeap, 2048
+        fcall NewBigArr
         mov [symtab_arr], rax
-        fcall NewArr, StrTabHeap, 2048
+        fcall NewBigArr
         mov [strtab_arr], rax
 
         DoArr Extend, [symtab_arr], ST_entry_size
@@ -229,7 +225,7 @@ ElfInit:
 ;;; Write out the standard library
 ElfWriteStd:
         fn
-        DoArr Extend, [text_arr], stdlib.len
+        DoArr Extend, [ElfText], stdlib.len
         fcall MemCpy, stdlib, rbx, stdlib.len
 
         ElfFindLitSymbol "std$$PrintNum"
@@ -250,7 +246,7 @@ StartSymbol: db "_start", 0
         section .text
 ElfSetStart:
         fn
-        mov rax, [text_arr]
+        mov rax, [ElfText]
         mov r12, [rax+Array_len]
         add r12, ELF_text_start
         mov [ELF_prelude.e_entry], r12
@@ -335,7 +331,7 @@ ElfUniqueSymbol:
 
 ElfSetTextSymbol:
         fn r12                  ; r12 = symbol
-        mov rax, [text_arr]
+        mov rax, [ElfText]
         mov r13, [rax+Array_len]
         add r13, ELF_text_start
         mov DWORD [r13+ST_shndx], SHN_Text
@@ -344,14 +340,14 @@ ElfSetTextSymbol:
 
 ElfWriteText:
         fn r12, r13             ; r12 = ptr, r13 = len
-        DoArr Extend, [text_arr], r13
+        DoArr Extend, [ElfText], r13
         fcall MemCpy, r12, rax, r13
         fnret
 
 ;;; XXX: Testing program
 ElfWriteProg:
         fn
-        DoArr Extend, [text_arr], testing123_len
+        DoArr Extend, [ElfText], testing123_len
         fcall MemCpy, testing123, rax, testing123_len
         fnret
 
@@ -359,7 +355,7 @@ ElfWriteProg:
 ElfFinalize:
         fn
         ;; Copy over the correct lengths
-        mov r12, [text_arr]     ; text
+        mov r12, [ElfText]     ; text
         fcall AlignArr, r12
         mov rax, [r12+Array_len]
         mov [ELF_text.p_filesz], rax
@@ -416,7 +412,7 @@ ElfWrite:
         ;; Write out the text
         mov rax, SYS_WRITE
         mov rdi, r12
-        mov rsi, [text_arr]
+        mov rsi, [ElfText]
         mov rdx, [ELF_text.p_filesz]
         syscall
 

@@ -6,6 +6,7 @@
 %include "io.asm"
 %include "memory.asm"
 %include "string.asm"
+%include "lazy.asm"
 
 ;;; Compiler stages
 %include "lexer.asm"
@@ -68,6 +69,7 @@ _start:
         mov [chr_infile], rax
 
         ;fcall TypeckInit
+        fcall LazyInit
         fcall StackInit
         fcall ElfInit
 .ParsePrintItem:

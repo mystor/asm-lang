@@ -61,10 +61,10 @@
 ;;; Write out a file to FILENAME
 ;;; USAGE: WriteLit FILE 'string','com','pon','ents'
 %macro WriteLit 2+
-        section .rodata
+        [section .rodata]
 %%str: db %2
 %%len: equ $ - %%str
-        section .text
+        __SECT__
         fcall WriteBytes, %1, %%str, %%len
 %endmacro
 
@@ -85,8 +85,7 @@ WriteBytes:
         Panic
 %endmacro
 
-%macro Panic 0
-%defstr %%str __LINE__
+__Panic_Helper:
         WriteLit STDOUT, ' @ Line '
         fcall WriteDec, [tok_line]
         WriteLit STDOUT, '/'
@@ -95,11 +94,21 @@ WriteBytes:
         fcall WriteDec, [tok_col]
         WriteLit STDOUT, '/'
         fcall WriteDec, [chr_col]
-        WriteLit STDOUT, ' (', __FILE__, ':', %%str, ') ', NL
+        WriteLit STDOUT, ' ('
+        pop r8
+        fcall WriteStr, r8
+        WriteLit STDOUT, ') ', NL
         mov rax, [0]            ; segfault
+
+%macro Panic 0
+%defstr %%str __LINE__
+        [section .rodata]
+%%ctx: db __FILE__, ':', %%str, 0
+        __SECT__
+        push %%ctx
+        jmp __Panic_Helper
 %endmacro
 
-        section .text
 Exit:
         fn rdi
         mov rax, SYS_EXIT

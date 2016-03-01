@@ -98,7 +98,7 @@
 %define BPframesize 120
 
 PushRegs:
-        sub rsp, BPframesize-8
+        sub rsp, BPframesize    ; -8
         mov [rsp+BPrbp], rbp
         mov [rsp+BPr15], r15
         mov [rsp+BPr14], r14
@@ -113,15 +113,16 @@ PushRegs:
         mov [rsp+BPrdx], rdx
         mov [rsp+BPrcx], rcx
         mov [rsp+BPrbx], rbx
-        mov rcx, [rsp+BPrax]    ; load return address
+        ;mov rcx, [rsp+BPrax]    ; load return address
         mov [rsp+BPrax], rax
         mov rbp, rsp
-        push rcx
-        ret
+        ;push rcx
+        ;ret
+        jmp rax
 
 PopRegs:
-        pop rcx
-        mov [rsp+BPrax], rcx
+;        pop rcx
+;        mov [rsp+BPrax], rcx
         mov rbp, [rsp+BPrbp]
         mov r15, [rsp+BPr15]
         mov r14, [rsp+BPr14]
@@ -135,20 +136,23 @@ PopRegs:
         mov rsi, [rsp+BPrsi]
         mov rdx, [rsp+BPrdx]
         mov rcx, [rsp+BPrcx]
-        add rsp, BPframesize-8
+        add rsp, BPframesize    ; -8
         ret
 
 ;;; Declare a fn
 %macro fn 0
-        call PushRegs
+        mov rax, ._args
+        jmp PushRegs
+._args:
         xor r8, r8
         xor r9, r9
         xor r10, r10
         xor r11, r11
-._fn_body:
 %endmacro
 %macro fn 1
-        call PushRegs
+        mov rax, ._args
+        jmp PushRegs
+._args:
         mbmov %1, r8
         xor r9, r9
         xor r10, r10
@@ -156,7 +160,9 @@ PopRegs:
 ._fn_body:
 %endmacro
 %macro fn 2
-        call PushRegs
+        mov rax, ._args
+        jmp PushRegs
+._args:
         mbmov %1, r8
         mbmov %2, r9
         xor r10, r10
@@ -164,7 +170,9 @@ PopRegs:
 ._fn_body:
 %endmacro
 %macro fn 3
-        call PushRegs
+        mov rax, ._args
+        jmp PushRegs
+._args:
         mbmov %1, r8
         mbmov %2, r9
         mbmov %3, r10
@@ -172,7 +180,9 @@ PopRegs:
 ._fn_body:
 %endmacro
 %macro fn 4
-        call PushRegs
+        mov rax, ._args
+        jmp PushRegs
+._args:
         mbmov %1, r8
         mbmov %2, r9
         mbmov %3, r10
@@ -185,22 +195,19 @@ PopRegs:
         mov rax, 0xdddead
         mov rbx, 0xdddead
         mov rsp, rbp
-        call PopRegs
-        ret
+        jmp PopRegs
 %endmacro
 %macro fnret 1
         mov rax, %1
         mov rbx, 0xdddead
         mov rsp, rbp
-        call PopRegs
-        ret
+        jmp PopRegs
 %endmacro
 %macro fnret 2
         mov rax, %1
         mov rbx, %2
         mov rsp, rbp
-        call PopRegs
-        ret
+        jmp PopRegs
 %endmacro
 
 ;;; Allocating stack locals
@@ -235,6 +242,9 @@ Write%[ENAME]:
     %$Next:
             %pop
         %endrep
+        WriteLit STDOUT, 'Unexpected enum variant in Write: '
+        fcall WriteDec, r12
+        Panic
     %%Done:
         fnret
 %endmacro
@@ -270,10 +280,10 @@ Write%[ENAME]:
         %xdefine SizeOf%[SNAME] offset
         %xdefine %[SNAME]$$maxoffset offset
         %xdefine static_[SNAME] times offset db 0
-%[SNAME]_copy:                  ; XXX: Unused
-        fn r8, r9
-        fcall MemCpy, r8, r9, SizeOf%[SNAME]
-        fnret
+;%[SNAME]_copy:                  ; XXX: Unused
+;        fn r8, r9
+;        fcall MemCpy, r8, r9, SizeOf%[SNAME]
+;        fnret
 %endmacro
 %macro endstruct 1
         struct_ensureprefix %1

@@ -72,17 +72,10 @@ MemEq:
 %define Heap_rem 8
 %define SizeOfHeap 16
 
-;;; A macro for creating a heap's required data
-%macro globl_heap 1
-        [section .bss]
-%1:
-.page: resq 1
-.rem: resq 1
-        __SECT__
-%endmacro
+;;; Declare the global heap
+        section .bss
+Heap: resq 2
 
-;;; Heap declarations
-globl_heap Heap
         section .text
 
 ;;; Allocate an 8-byte aligned block of memory with size r12
@@ -119,8 +112,8 @@ AllocUnal:
         fcall MemSet, 0, r13, r12
         fnret r13
 .newpage:
-        cmp r12, PAGE_SIZE
-        jge .failure
+        cmp r12, PAGE_SIZE      ; XXX: Currently cannot allocate a continuous block of more than a page...
+        ja .failure
 
         fcall AllocNewPage
         mov [r15+Heap_page], rax
@@ -221,7 +214,7 @@ NewBigArr:
         fnret rax
 
 ;;; Helper macro for running ExtendArr and friends
-%macro DoArr 3
+%macro DoArr 3+
         fcall __%1Arr, %2, %3
         mov %2, rax
         mov rax, rbx
@@ -298,6 +291,13 @@ __SealArr:
         fcall Free, r15, rbx, rax
         fnret r12, rbx
 
+;;; Write the data and length to the array
+__WriteArr:
+        fn r12, r13, r14        ; r12 = array, r13 = data, r14 = len
+        DoArr Extend, r12, r14
+        fcall MemCpy, r13, rbx, r14
+        fnret r12
+
 ;;; Add bytes to the end of the array such that it is 8-byte aligned
 AlignArr:
         fn r12
@@ -351,5 +351,8 @@ LookupOrInsertByKey:
         fnret rax
 
 %define SizeOfQWORD 8
+%define SizeOfDWORD 4
+%define SizeOfWORD 2
+%define SizeOfBYTE 1
 
 

@@ -267,7 +267,9 @@ ParseStmt:
         fcall ParseType
         mov r12, rax
         Expect TOKEN_IDENT
-        fcall StackInsert, rax, r12
+        mov rcx, rax
+        fcall StackAlloc, r12   ; Alloc the value on the stack
+        fcall StackInsert, rcx, r12, DALLOC_LOCAL, rax
         mov r13, rax
         fcall PeekTok
         cmp rax, TOKEN_EQ

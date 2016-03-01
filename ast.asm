@@ -7,6 +7,14 @@ struct Value
 endstruct
 
 enum ALLOC
+        opt garbage1
+        opt garbage2
+        opt garbage3
+        opt garbage4
+        opt garbage5
+        opt garbage6
+        opt garbage7
+        opt garbage8
         opt RVALUE
         opt LVALUE
 endenum
@@ -68,11 +76,11 @@ I32_type:
         dq 1
         dq 4
 I32_value:
+        dq ALLOC_RVALUE
         dq I32_type
-        dq ALLOC_RVALUE
 I64_value:
-        dq I64_type
         dq ALLOC_RVALUE
+        dq I64_type
 
         section .text
 SizeOfType:
@@ -107,7 +115,7 @@ WrapTypeRValue:
 
 WrapTypeLValue:
         fn r12                  ; r12 = type
-        fcall WrapTypeRValue
+        fcall WrapTypeRValue, r12
         mov QWORD [rax+Value_alloc], ALLOC_LVALUE
         fnret rax
 
