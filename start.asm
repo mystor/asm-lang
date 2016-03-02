@@ -81,11 +81,26 @@ _start:
         ;mov r12, rax
         ;fcall WriteItem, r12
         ;fcall TypeckItem, r12
-        WriteLit STDOUT, NL
+        ;WriteLit STDOUT, NL
 
         jmp .ParsePrintItem
+section .data
+.o_filename: db "a.out", 0
+section .text
 .Exit:
-        fcall ElfWrite, 0       ; XXX: FIXME
+        mov rax, SYS_OPEN
+        mov rdi, .o_filename
+        mov rsi, O_WRONLY | O_CREAT
+        mov rdx, S_EXECUTABLE
+        syscall
+        mov r12, rax
+        fcall WriteDec, rax
+
+        fcall ElfWrite, r12     ; XXX: FIXME
+        mov rax, SYS_CLOSE
+        mov rdi, r12
+        syscall
+        WriteLit STDOUT, 'Finished...', NL
         fcall Exit, 0
 .IncorrectArgLen:
         fcall WriteDec, [argc]

@@ -70,7 +70,7 @@ MemEq:
 ;;; Offsets of the page and remainder properties in heaps
 %define Heap_page 0
 %define Heap_rem 8
-%define SizeOfHeap 16
+%define SIZE_Heap 16
 
 ;;; Declare the global heap
         section .bss
@@ -209,7 +209,7 @@ NewArr:
 ;;; XXX: Right now this is horribly inefficient, and will waste tons of space
 NewBigArr:
         fn
-        fcall Alloc, Heap, SizeOfHeap
+        fcall Alloc, Heap, SIZE_Heap
         fcall NewArr, rax, PAGE_SIZE - Array_HeadSize
         fnret rax
 
@@ -310,6 +310,12 @@ AlignArr:
 .aligned:
         fnret r12
 
+;; Remove all values from the array
+ClearArr:
+        fn r12
+        mov QWORD [r12+Array_len], 0
+        fnret
+
 struct KVPair
         field key
         field value
@@ -323,7 +329,7 @@ LookupByKey:
 .loop:
         cmp r14, 0
         jle .notfound
-        sub r14, SizeOfKVPair
+        sub r14, SIZE_KVPair
         mov rax, [r12+r14+KVPair_key]
         fcall StrCmp, rax, r13
         cmp rax, 0
@@ -344,15 +350,15 @@ LookupOrInsertByKey:
         cmp rax, 0
         jne .found
 .notfound:
-        DoArr Extend, [r12], SizeOfKVPair
+        DoArr Extend, [r12], SIZE_KVPair
         mov [rax+KVPair_key], r13
         lea rax, [rax+KVPair_value]
 .found:
         fnret rax
 
-%define SizeOfQWORD 8
-%define SizeOfDWORD 4
-%define SizeOfWORD 2
-%define SizeOfBYTE 1
+%define SIZE_QWORD 8
+%define SIZE_DWORD 4
+%define SIZE_WORD 2
+%define SIZE_BYTE 1
 
 

@@ -1,6 +1,6 @@
 ;;; -*- nasm -*-
         section .bss
-LazyIdx: resq 1
+StackIdx: resq 1
 LazyStack: resd 100
 LazyArr: resq 1
 
@@ -28,11 +28,23 @@ LazyInit:
         mov [LazyArr], rax
         fnret
 
-LazyPush:
+;;; Push a new stack frame - this adds scope and lazy stuff!
+StackPush:
         fn
-        inc QWORD [LazyIdx]
-        mov rax, [LazyIdx]
-        inc DWORD [LazyStack+rax*4]
+        inc QWORD [StackIdx]
+        mov rcx, [StackIdx]
+        inc DWORD [LazyStack+rcx*4]
+        cmp QWORD [ScopeStack+rcx*8], 0
+        jne .init
+        fcall NewArr, Heap, SIZE_VarDef * 64
+        mov [ScopeStack+rcx*8], rax
+.init:
+        fcall ClearArr, [ScopeStack+rcx*8]
+        fnret
+
+StackPop:
+        fn
+        dec QWORD [StackIdx]
         fnret
 
 LazyNum:
@@ -59,14 +71,14 @@ FindLazy:
         jne .cont
         fnret rcx
 .cont:
-        add rcx, SizeOfLazyVal
+        add rcx, SIZE_LazyVal
         jmp .loop
 .notfound:
-        DoArr Extend, [LazyArr], SizeOfLazyVal
+        DoArr Extend, [LazyArr], SIZE_LazyVal
         mov rcx, rax
         mov [rcx+LazyVal_name], r13
         mov [rcx+LazyVal_num], r12
-        fcall NewArr, Heap, SizeOfDep
+        fcall NewArr, Heap, SIZE_Dep
         mov [rcx+LazyVal_deps], rax
         fnret rcx
 
@@ -87,7 +99,7 @@ WriteLazy:
         sub rax, [r12]          ; Get the offset
         mov rdx, rax
         fcall FindLazy, r13, r14
-        DoArr Extend, [rax+LazyVal_deps], SizeOfDep
+        DoArr Extend, [rax+LazyVal_deps], SIZE_Dep
         mov [rax+Dep_base], r12
         mov [rax+Dep_off], rdx
         mov [rax+Dep_size], r15

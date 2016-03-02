@@ -4,4 +4,5 @@ int main() {
   x * 5;
   sizeof(int);
   sizeof(unsigned int);
+  syscall(60, 0);
 }

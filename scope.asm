@@ -1,8 +1,9 @@
 ;;; -*- nasm -*-
         section .bss
-frame_arr: resq 1               ; The array holding the current frame
-curr: resq 1                    ; The index of the current frame start
+;frame_arr: resq 1               ; The array holding the current frame
+;curr: resq 1                    ; The index of the current frame start
 salloc_offset: resq 1           ; The current offset from rbp of new allocs
+ScopeStack: resq 100
 
         section .data
 enum DALLOC
@@ -26,52 +27,56 @@ struct VarDef
 endstruct
 
         section .text
+;StackInit:
+;        fn
+;        fcall NewBigArr
+;        mov [frame_arr], rax
+;        DoArr PushQWord, [frame_arr], -1
+;        mov QWORD [curr], 0
+;        fnret
+
+;;; Adds a new frame to the frame stack
+;StackPushFrame:
+;        fn
+;        ; x = frame_arr->len
+;        ; frame_arr->push(curr)
+;        ; curr = x
+;        mov r12, [frame_arr]
+;        mov r14, [r12+Array_len] ; Save the index of the start of the frame
+;        DoArr PushQWord, [frame_arr], [curr]
+;        mov [curr], r14
+;        fnret
+
+;StackPopFrame:
+;        fn
+;        ; x = frame_arr[curr]
+;        ; frame_arr->len = curr
+;        ; curr = x
+;        mov r12, [frame_arr]
+;        mov r13, [curr]
+;        mov rbx, [r12+r13]
+;        mov [curr], rbx
+;        mov [r12+Array_len], r13
+;        fnret
+
 StackInit:
         fn
         fcall NewBigArr
-        mov [frame_arr], rax
-        DoArr PushQWord, [frame_arr], -1
-        mov QWORD [curr], 0
-        fnret
-
-;;; Adds a new frame to the frame stack
-StackPushFrame:
-        fn
-        ; x = frame_arr->len
-        ; frame_arr->push(curr)
-        ; curr = x
-        mov r12, [frame_arr]
-        mov r14, [r12+Array_len] ; Save the index of the start of the frame
-        DoArr PushQWord, [frame_arr], [curr]
-        mov [curr], r14
-        fnret
-
-StackPopFrame:
-        fn
-        ; x = frame_arr[curr]
-        ; frame_arr->len = curr
-        ; curr = x
-        mov r12, [frame_arr]
-        mov r13, [curr]
-        mov rbx, [r12+r13]
-        mov [curr], rbx
-        mov [r12+Array_len], r13
+        mov [ScopeStack+0], rax
         fnret
 
 StackInsert:
         fn r12, r13, r14, r15   ; name, type, alloc, data
-        mov rax, [frame_arr]
-        fcall StackLookupFrame, r12, [curr], [rax+Array_len]
+        mov rcx, [StackIdx]
+        fcall StackLookupFrame, r12, [ScopeStack+rcx*8]
         cmp rax, 0
         jne .repeated
-        fcall Alloc, Heap, SizeOfVarDef
+        DoArr Extend, [ScopeStack+rcx*8], SIZE_VarDef
         mov [rax+VarDef_name], r12
         mov [rax+VarDef_type], r13
         mov [rax+VarDef_alloc], r14
         mov [rax+VarDef_data], r15
-        mov rcx, rax
-        DoArr PushQWord, [frame_arr], rax
-        fnret rcx
+        fnret rax
 .repeated:
         Panic 'Cannot insert a duplicate variable name'
 
@@ -79,39 +84,38 @@ StackInsert:
 ;;; Returns 0 if there is no such variable
 StackLookup:
         fn r12                  ; r12 = name
-        mov rax, [frame_arr]
-        mov r14, [rax+Array_len]
-        mov r13, [curr]
+        mov rcx, 0
 .lookup:
-        fcall StackLookupFrame, r12, r13, r14
+        cmp rcx, [StackIdx]
+        ja .notfound
+        fcall StackLookupFrame, r12, [ScopeStack+rcx*8]
         cmp rax, 0
-        jne .done
-        mov r14, r13
-        mov r13, rbx
-        cmp r13, -1
-        jne .lookup
-.done:
+        jne .found
+        inc rcx
+        jmp .lookup
+.found:
         fnret rax
+.notfound:
+        fnret 0
 
 ;;; Lookup
 StackLookupFrame:
-        fn r12, r13, r14        ; r12 = name, r13 = base, r14 = end
-        ;; Move past the first entry
-        mov rcx, [frame_arr]
-        mov r15, [rcx+r13]    ; r15 = next_base
+        fn r12, r13             ; r12 = name, r13 = array
+        mov rcx, 0
 .loop:
-        add r13, 8
-        cmp r13, r14
+        cmp rcx, [r13+Array_len]
         jae .notfound
-        mov rdx, [rcx+r13]    ; rax = the value
-        fcall StrCmp, [rdx+VarDef_name], r12
+        ;lea rax, [r13+rcx]
+        fcall StrCmp, [r13+rcx+VarDef_name], r12
         cmp rax, 0
-        jne .loop
-.found:
-        mov rax, [rdx+VarDef_name] ; The type!
-        fnret rax, r15
+        je .found
+        add rcx, SIZE_VarDef
+        jmp .loop
 .notfound:
-        fnret 0, r15
+        fnret 0
+.found:
+        lea rax, [r13+rcx]
+        fnret rax
 
         section .rodata
 S_$fsize: db "$fsize", 0
@@ -126,13 +130,13 @@ C_PushSA: db REX_BASE | REX_W, 0x81, 0xc4
 EmitPopStackAllocs:
         fn
         DoArr Write, [ElfText], C_PopSA, C_PopSA.len
-        fcall WriteLazy, ElfText, 1, S_$fsize, SizeOfDWORD
+        fcall WriteLazy, ElfText, 1, S_$fsize, SIZE_DWORD
         fnret
 
 EmitPushStackAlloc:
         fn
         DoArr Write, [ElfText], C_PushSA, C_PushSA.len
-        fcall WriteLazy, ElfText, 1, S_$fsize, SizeOfDWORD
+        fcall WriteLazy, ElfText, 1, S_$fsize, SIZE_DWORD
         fnret
 
 ;;; Clear all of the allocation data from the stack, filling in alloc values

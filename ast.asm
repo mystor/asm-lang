@@ -23,7 +23,7 @@ endenum
 struct Type
         field variant
 endstruct
-%undef SizeOfType
+%undef SIZE_Type
 
 enum TYPE
         opt INT
@@ -108,7 +108,7 @@ SizeOfType:
 
 WrapTypeRValue:
         fn r12                  ; r12 = type
-        fcall Alloc, Heap, SizeOfValue
+        fcall Alloc, Heap, SIZE_Value
         mov [rax+Value_type], r12
         mov QWORD [rax+Value_alloc], ALLOC_RVALUE
         fnret rax

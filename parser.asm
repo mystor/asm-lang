@@ -86,16 +86,25 @@ ParseItem:
 
 .func_def:
         Expect TOKEN_LPAREN
-        fcall Alloc, Heap, SizeOfTypeFunc
+        fcall Alloc, Heap, SIZE_TypeFunc
         mov r12, rax
         mov QWORD [r12+TypeFunc_variant], TYPE_FUNC
         mov [r12+TypeFunc_returns], r14 ; XXX: Treat void differently?
+        fcall NewArr, Heap, SIZE_QWORD * 4
+        mov [r12+TypeFunc_params], rax
+        mov r13, rax
+        fcall StackPush
         fcall PeekTok       ; Handle empty params lists
         cmp rax, TOKEN_RPAREN
         je .paramsdone
 .paramsloop:
         fcall ParseType
+        mov rdx, rax
+        DoArr PushQWord, rdx
         Expect TOKEN_IDENT
+        mov rcx, rax
+        fcall StackAlloc, rdx
+        fcall StackInsert, rcx, rdx, DALLOC_LOCAL, rax
         fcall PeekTok
         cmp rax, TOKEN_COMMA
         jne .paramsdone
@@ -103,8 +112,10 @@ ParseItem:
         jmp .paramsloop
 .paramsdone:
         Expect TOKEN_RPAREN
-        fcall ParseCompoundStmt
-        Panic 'Unexpected function definition'
+        ; XXX: Handle calling convention
+        fcall ParseCompoundStmt ; XXX: Check if we are a fwd declaration
+        fcall StackPop
+        fcall StackInsert, r15, r12, DALLOC_CONST, 
         fnret rcx
 
 ParseType:
@@ -120,14 +131,14 @@ ParseType:
         fnret r12
 .pointer:
         Expect TOKEN_STAR
-        fcall Alloc, Heap, SizeOfTypePtr
+        fcall Alloc, Heap, SIZE_TypePtr
         mov QWORD [rax+TypePtr_variant], TYPE_PTR
         mov [rax+TypePtr_target], r12
         mov r12, rax
         jmp .loop
 .array:
         Expect TOKEN_LBRACE
-        fcall Alloc, Heap, SizeOfTypeArray
+        fcall Alloc, Heap, SIZE_TypeArray
         mov QWORD [rax+TypeArray_variant], TYPE_ARRAY
         mov [rax+TypeArray_target], r12
         mov r12, rax
@@ -155,7 +166,7 @@ ParseTypeAtom:
         je .void_type
 
 .int_type:
-        fcall Alloc, Heap, SizeOfTypeInt
+        fcall Alloc, Heap, SIZE_TypeInt
         mov r12, rax
         mov QWORD [r12+TypeInt_variant], TYPE_INT
         mov QWORD [r12+TypeInt_signed], 1 ; true
@@ -228,7 +239,7 @@ ParseTypeAtom:
 
 .struct_type:
         Expect TOKEN_STRUCT
-        fcall Alloc, Heap, SizeOfTypeStruct
+        fcall Alloc, Heap, SIZE_TypeStruct
         mov r12, rax
         mov QWORD [r12+TypeStruct_variant], TYPE_STRUCT
         Expect TOKEN_IDENT
@@ -237,7 +248,7 @@ ParseTypeAtom:
 
 .void_type:
         Expect TOKEN_VOID
-        fcall Alloc, Heap, SizeOfTypeVoid
+        fcall Alloc, Heap, SIZE_TypeVoid
         mov QWORD [rax+TypeVoid_variant], TYPE_VOID
         fnret rax
 
@@ -639,8 +650,17 @@ ParseAtom:
 
 .ref:
         Expect TOKEN_IDENT
-        fcall StackLookup, rax
+        mov r12, rax
+        fcall StackLookup, r12
+        cmp rax, 0
+        je .nosuchref
         fcall EmitLaddr, rax
         fnret rax
+
+.nosuchref:
+        WriteLit STDOUT, 'No such value with name '
+        fcall WriteStr, r12
+        WriteLit STDOUT, '!'
+        Panic
 
 

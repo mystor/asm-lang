@@ -277,12 +277,13 @@ Write%[ENAME]:
 %endmacro
 %macro endstruct 0
 ;;; Get the size of the type!
-        %xdefine SizeOf%[SNAME] offset
+SIZE_%[SNAME]: equ offset
+        ;%xdefine SIZE_%[SNAME] offset
         %xdefine %[SNAME]$$maxoffset offset
         %xdefine static_[SNAME] times offset db 0
 ;%[SNAME]_copy:                  ; XXX: Unused
 ;        fn r8, r9
-;        fcall MemCpy, r8, r9, SizeOf%[SNAME]
+;        fcall MemCpy, r8, r9, SIZE_%[SNAME]
 ;        fnret
 %endmacro
 %macro endstruct 1

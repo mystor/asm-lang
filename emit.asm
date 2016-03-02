@@ -566,7 +566,7 @@ EmitAddrof:
         fn r12                  ; r12 = operand
         cmp QWORD [r12+Value_alloc], ALLOC_LVALUE
         jne .invalid
-        fcall Alloc, Heap, SizeOfTypePtr
+        fcall Alloc, Heap, SIZE_TypePtr
         mov QWORD [rax+TypePtr_variant], TYPE_PTR
         mov rbx, [r12+Value_type]
         mov [rax+TypePtr_target], rbx
@@ -814,9 +814,11 @@ EmitLaddr:
         je .global
         cmp QWORD [r12+VarDef_alloc], DALLOC_CONST
         je .const
+        fcall WriteDec, [r12+VarDef_alloc]
         Panic 'Unexpected alloc type'
 .local:
         mov rax, [r12+VarDef_data]
+        neg rax
         push rax
         fcall MemCpy, rsp, C_LocalLea.offset, 4
         pop rax

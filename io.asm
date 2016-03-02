@@ -292,12 +292,12 @@ GetChr:
         fnret -1
 
 
-; %define SizeOfSigaction 4*8
+; %define SIZE_Sigaction 4*8
 %define Sigaction_sa_handler 0
 %define Sigaction_sa_flags 8
 %define Sigaction_sa_restorer 16
 %define Sigaction_sa_mask 24
-%define SizeOfSigset 128          ; Seems unnecessarially big
+%define SIZE_Sigset 128          ; Seems unnecessarially big
 %define Sig_MAGIC_FLAGS 0x4000000
 
         section .rodata
@@ -305,7 +305,7 @@ SigSEGVHandler:
         dq SegvHandler
         dq Sig_MAGIC_FLAGS
         dq __restore_rt
-        times SizeOfSigset db 0
+        times SIZE_Sigset db 0
 
         section .text
 SegvHandler:
