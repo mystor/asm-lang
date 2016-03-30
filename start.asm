@@ -90,13 +90,10 @@ section .text
 .Exit:
         mov rax, SYS_OPEN
         mov rdi, .o_filename
-        mov rsi, O_WRONLY | O_CREAT
+        mov rsi, O_WRONLY | O_CREAT | O_TRUNC
         mov rdx, S_EXECUTABLE
         syscall
-        mov r12, rax
-        fcall WriteDec, rax
-
-        fcall ElfWrite, r12     ; XXX: FIXME
+        fcall ElfWrite, rax     ; XXX: FIXME
         mov rax, SYS_CLOSE
         mov rdi, r12
         syscall

@@ -66,6 +66,7 @@ enum TOKEN
         opt VOID
         opt RETURN
         opt SIZEOF
+        opt SYSCALL
 
         ;; Special, Tokens (have data)
         opt IDENT
@@ -432,6 +433,7 @@ __ReadTok_IDENT_Done:
         kwtok 'void', TOKEN_VOID
         kwtok 'return', TOKEN_RETURN
         kwtok 'sizeof', TOKEN_SIZEOF
+        kwtok 'syscall', TOKEN_SYSCALL ; XXX: Cheaty cheaty
 %undef kwtok
         rettok TOKEN_IDENT, r13
 

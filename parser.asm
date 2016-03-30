@@ -85,6 +85,10 @@ ParseItem:
         Expect TOKEN_IDENT
 
 .func_def:
+        fcall StrCmp, r15, StartSymbol
+        cmp rax, 0
+        je ._start_funcdef
+.func_def_cont:
         Expect TOKEN_LPAREN
         fcall Alloc, Heap, SIZE_TypeFunc
         mov r12, rax
@@ -113,10 +117,24 @@ ParseItem:
 .paramsdone:
         Expect TOKEN_RPAREN
         ; XXX: Handle calling convention
+        EmitLit
+        push rbp
+        mov rbp, rsp
+        EndEmitLit
+        ;fcall EmitPushStackAlloc
         fcall ParseCompoundStmt ; XXX: Check if we are a fwd declaration
+        EmitLit
+        mov rsp, rbp
+        pop rbp
+        EndEmitLit
         fcall StackPop
         fcall StackInsert, r15, r12, DALLOC_CONST, 
         fnret rcx
+
+._start_funcdef:
+        fcall ElfSetStart
+        jmp .func_def_cont
+
 
 ParseType:
         fn
@@ -631,6 +649,8 @@ ParseAtom:
         je .sizeof
         cmp rax, TOKEN_IDENT
         je .ref
+        cmp rax, TOKEN_SYSCALL
+        je .syscall
         Panic 'Unrecognized Atom Starter'
 
 .integer:
@@ -662,5 +682,97 @@ ParseAtom:
         fcall WriteStr, r12
         WriteLit STDOUT, '!'
         Panic
+
+;;; Who needs good code when you can write the worst hack ever
+.syscall:
+        Expect TOKEN_SYSCALL
+        Expect TOKEN_LPAREN
+        mov rcx, 0
+.scargsloop:
+        fcall ParseExpr
+        fcall EmitCast, rax, I64_type
+        fcall PeekTok
+        cmp rax, TOKEN_COMMA
+        jne .scargsdone
+        Expect TOKEN_COMMA
+        fcall EmitPushRax
+        inc rcx
+        jmp .scargsloop
+        section .rodata
+.jmptbl:
+        dq .syscall0
+        dq .syscall1
+        dq .syscall2
+        dq .syscall3
+        dq .syscall4
+        dq .syscall5
+        dq .syscall6
+        section .text
+.scargsdone:
+        Expect TOKEN_RPAREN
+        jmp [.jmptbl+rcx*8]
+.syscall0:
+        EmitLit
+        syscall
+        EndEmitLit
+        fnret
+.syscall1:
+        EmitLit
+        mov rdi, rax
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+.syscall2:
+        EmitLit
+        mov rsi, rax
+        pop rdi
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+.syscall3:
+        EmitLit
+        mov rdx, rax
+        pop rsi
+        pop rdi
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+.syscall4:
+        EmitLit
+        mov r10, rax
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+.syscall5:
+        EmitLit
+        mov r8, rax
+        pop r10
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+.syscall6:
+        EmitLit
+        mov r9, rax
+        pop r8
+        pop r10
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rax
+        syscall
+        EndEmitLit
+        fnret
+
 
 

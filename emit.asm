@@ -833,3 +833,17 @@ EmitLaddr:
         fcall EmitLazyInt, 0, [r12+VarDef_data]
         fcall WrapTypeRValue, [r12+VarDef_type]
         fnret rax
+
+EmitNops:
+        fn
+        EmitLit
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+        EndEmitLit
+        fnret
